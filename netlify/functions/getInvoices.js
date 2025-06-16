@@ -3,6 +3,7 @@
 // Example: /getInvoices?access_token=YOUR_TOKEN
 
 const { getValidToken } = require('./utils/tokenManager');
+const { parseString } = require('xml2js');
 
 exports.handler = async function(event, context) {
   try {
@@ -37,6 +38,7 @@ exports.handler = async function(event, context) {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Xero-tenant-id': tenantId
       }
@@ -47,40 +49,74 @@ exports.handler = async function(event, context) {
       throw new Error(`Failed to fetch invoices: ${invoicesResponse.status} ${invoicesResponse.statusText} - ${errorText}`);
     }
 
-    // Check if response is JSON before parsing
-    const contentType = invoicesResponse.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
+    // Handle both JSON and XML responses from Xero
+    const contentType = invoicesResponse.headers.get('content-type') || '';
+    console.log('Response content-type:', contentType);
+    
+    let invoicesData;
+    let invoices = [];
+
+    if (contentType.includes('application/json')) {
+      console.log('Parsing JSON response...');
+      invoicesData = await invoicesResponse.json();
+      invoices = invoicesData.Invoices || [];
+    } 
+    else if (contentType.includes('text/xml') || contentType.includes('application/xml')) {
+      console.log('Parsing XML response...');
+      const xmlData = await invoicesResponse.text();
+      
+      // Parse XML to JavaScript object
+      invoicesData = await new Promise((resolve, reject) => {
+        parseString(xmlData, { 
+          explicitArray: false,
+          mergeAttrs: true,
+          normalize: true,
+          normalizeTags: true,
+          trim: true
+        }, (err, result) => {
+          if (err) {
+            reject(new Error(`XML parse error: ${err.message}`));
+          } else {
+            resolve(result.response || result.Response);
+          }
+        });
+      });
+
+      // Handle XML structure - invoices can be single object or array
+      if (invoicesData.invoices) {
+        const xmlInvoices = invoicesData.invoices.invoice || invoicesData.invoices.Invoice;
+        invoices = Array.isArray(xmlInvoices) ? xmlInvoices : [xmlInvoices];
+      }
+    }
+    else {
       const responseText = await invoicesResponse.text();
-      console.error('Non-JSON response from Xero:', {
+      console.error('Unsupported response format:', {
         status: invoicesResponse.status,
         contentType,
-        responseText: responseText.substring(0, 500) // Log first 500 chars
+        responseText: responseText.substring(0, 500)
       });
-      throw new Error(`Xero returned non-JSON response. Content-Type: ${contentType}. Response: ${responseText.substring(0, 200)}`);
+      throw new Error(`Unsupported content-type: ${contentType}. Response: ${responseText.substring(0, 200)}`);
     }
-
-    const invoicesData = await invoicesResponse.json();
-    const invoices = invoicesData.Invoices || [];
 
     console.log(`Successfully fetched ${invoices.length} invoices`);
 
-    // Format the response with useful information
+    // Format the response with useful information (handles both JSON and XML structures)
     const formattedInvoices = invoices.map(invoice => ({
-      invoiceID: invoice.InvoiceID,
-      invoiceNumber: invoice.InvoiceNumber,
-      type: invoice.Type,
-      status: invoice.Status,
-      date: invoice.Date,
-      dueDate: invoice.DueDate,
-      total: invoice.Total,
-      amountDue: invoice.AmountDue,
-      amountPaid: invoice.AmountPaid,
+      invoiceID: invoice.InvoiceID || invoice.invoiceid,
+      invoiceNumber: invoice.InvoiceNumber || invoice.invoicenumber,
+      type: invoice.Type || invoice.type,
+      status: invoice.Status || invoice.status,
+      date: invoice.Date || invoice.date,
+      dueDate: invoice.DueDate || invoice.duedate,
+      total: parseFloat(invoice.Total || invoice.total || 0),
+      amountDue: parseFloat(invoice.AmountDue || invoice.amountdue || 0),
+      amountPaid: parseFloat(invoice.AmountPaid || invoice.amountpaid || 0),
       contact: {
-        contactID: invoice.Contact?.ContactID,
-        name: invoice.Contact?.Name
+        contactID: invoice.Contact?.ContactID || invoice.contact?.contactid,
+        name: invoice.Contact?.Name || invoice.contact?.name
       },
-      currencyCode: invoice.CurrencyCode,
-      reference: invoice.Reference
+      currencyCode: invoice.CurrencyCode || invoice.currencycode,
+      reference: invoice.Reference || invoice.reference
     }));
 
     const response = {
@@ -88,8 +124,8 @@ exports.handler = async function(event, context) {
       tenantId: tenantId,
       summary: {
         totalInvoices: invoices.length,
-        totalAmount: invoices.reduce((sum, inv) => sum + (inv.Total || 0), 0),
-        totalAmountDue: invoices.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
+        totalAmount: formattedInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+        totalAmountDue: formattedInvoices.reduce((sum, inv) => sum + (inv.amountDue || 0), 0)
       },
       invoices: formattedInvoices,
       fetchedAt: new Date().toISOString()
