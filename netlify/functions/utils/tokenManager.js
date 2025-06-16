@@ -54,4 +54,21 @@ const getValidToken = async (userId) => {
   return tokenData.accessToken;
 };
 
-module.exports = { storeTokens, getValidToken }; 
+// Get all available tenant IDs
+const getAvailableTenants = async () => {
+  const snapshot = await db.collection('xero_tokens').get();
+  const tenants = [];
+  
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    tenants.push({
+      tenantId: doc.id,
+      tenantName: data.tenantName,
+      updatedAt: data.updatedAt
+    });
+  });
+  
+  return tenants;
+};
+
+module.exports = { storeTokens, getValidToken, getAvailableTenants }; 

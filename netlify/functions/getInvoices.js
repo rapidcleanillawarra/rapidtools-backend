@@ -6,47 +6,38 @@ const { getValidToken } = require('./utils/tokenManager');
 
 exports.handler = async function(event, context) {
   try {
-    // Get valid token from Firestore (auto-refresh if needed)
-    const accessToken = await getValidToken('user123'); // TODO: Replace 'user123' with actual user ID
-
-    console.log('Fetching invoices with provided access token...');
-
-    // Step 1: Get tenant information
-    console.log('Getting tenant information...');
-    const tenantsResponse = await fetch('https://api.xero.com/connections', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!tenantsResponse.ok) {
-      const errorText = await tenantsResponse.text();
-      throw new Error(`Failed to get tenants: ${tenantsResponse.status} ${tenantsResponse.statusText} - ${errorText}`);
-    }
-
-    const tenants = await tenantsResponse.json();
+    // Get tenant ID from query parameters or use a default approach
+    const tenantId = event.queryStringParameters?.tenant_id;
     
-    if (!tenants || tenants.length === 0) {
-      throw new Error('No connected Xero organizations found');
+    if (!tenantId) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Missing tenant_id parameter',
+          message: 'Please provide tenant_id as a query parameter',
+          example: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID'
+        }, null, 2)
+      };
     }
 
-    const firstTenant = tenants[0];
-    console.log('Using tenant:', {
-      tenantId: firstTenant.tenantId,
-      tenantName: firstTenant.tenantName,
-      tenantType: firstTenant.tenantType
-    });
+    // Get valid token from Firestore (auto-refresh if needed)
+    const accessToken = await getValidToken(tenantId);
 
-    // Step 2: Fetch invoices from Xero Accounting API
+    console.log('Fetching invoices with access token for tenant:', tenantId);
+
+    // Fetch invoices from Xero Accounting API using the provided tenant ID
     console.log('Fetching invoices from Xero...');
     const invoicesResponse = await fetch(`https://api.xero.com/api.xro/2.0/Invoices`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'Xero-tenant-id': firstTenant.tenantId
+        'Xero-tenant-id': tenantId
       }
     });
 
@@ -81,11 +72,7 @@ exports.handler = async function(event, context) {
 
     const response = {
       success: true,
-      tenant: {
-        tenantId: firstTenant.tenantId,
-        tenantName: firstTenant.tenantName,
-        tenantType: firstTenant.tenantType
-      },
+      tenantId: tenantId,
       summary: {
         totalInvoices: invoices.length,
         totalAmount: invoices.reduce((sum, inv) => sum + (inv.Total || 0), 0),

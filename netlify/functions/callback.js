@@ -105,8 +105,10 @@ exports.handler = async function(event, context) {
 
     // Store tokens in Firestore
     try {
-      await storeTokens('user123', tokenData, tenantInfo); // TODO: Replace 'user123' with actual user ID
-      console.log('Tokens stored successfully in Firestore');
+      // Use tenant ID as the user identifier, or fallback to a default
+      const userId = tenantInfo?.tenantId || `xero_${Date.now()}`;
+      await storeTokens(userId, tokenData, tenantInfo);
+      console.log('Tokens stored successfully in Firestore with userId:', userId);
     } catch (storeError) {
       console.error('Failed to store tokens:', storeError);
       // Continue with success page but log the error
