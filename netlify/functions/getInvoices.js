@@ -2,10 +2,12 @@
 // For testing: Pass access_token as query parameter
 // Example: /getInvoices?access_token=YOUR_TOKEN
 
+const { getValidToken } = require('./utils/tokenManager');
+
 exports.handler = async function(event, context) {
   try {
-    // Check if access token is provided as query parameter
-    const accessToken = event.queryStringParameters?.access_token;
+    // Replace access_token param check with:
+    const accessToken = await getValidToken('user123'); // TODO: Replace 'user123' with actual user ID
     
     if (!accessToken) {
       // Return configuration status if no token provided

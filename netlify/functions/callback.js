@@ -1,4 +1,5 @@
 const { XeroClient } = require('xero-node');
+const { storeTokens } = require('./utils/tokenManager');
 
 exports.handler = async function(event, context) {
   // Validate incoming request
@@ -102,9 +103,9 @@ exports.handler = async function(event, context) {
       });
     }
 
-    // In production: Store tokens in database here
-    // For now, we'll just confirm success
-    
+    // After getting tokenData and tenantInfo:
+    await storeTokens('user123', tokenData, tenantInfo); // TODO: Replace 'user123' with actual user ID
+
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
     
     const successHtml = `

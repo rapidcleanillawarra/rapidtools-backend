@@ -6,6 +6,7 @@
     "deploy": "echo Deploying functions"
   },
   "dependencies": {
+    "firebase-admin": "^11.0.0",
     "xero-node": "^5.0.0"
   }
 } 
