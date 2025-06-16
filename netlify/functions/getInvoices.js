@@ -21,7 +21,15 @@ exports.handler = async function(event, context) {
           success: false,
           error: 'Missing tenant_id parameter',
           message: 'Please provide tenant_id as a query parameter',
-          example: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID'
+          examples: {
+            basic: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID',
+            withPagination: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&page=1&page_size=10'
+          },
+          parameters: {
+            tenant_id: 'Required - Xero tenant ID',
+            page: 'Optional - Page number (default: 1)',
+            page_size: 'Optional - Records per page (default: 10, max: 100)'
+          }
         }, null, 2)
       };
     }
@@ -32,9 +40,13 @@ exports.handler = async function(event, context) {
     console.log('Fetching invoices with access token for tenant:', tenantId);
     console.log('Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
+    // Get pagination parameters
+    const page = parseInt(event.queryStringParameters?.page || '1');
+    const pageSize = Math.min(parseInt(event.queryStringParameters?.page_size || '10'), 100); // Max 100 records
+    
     // Fetch invoices from Xero Accounting API using the provided tenant ID
-    console.log('Fetching invoices from Xero...');
-    const invoicesResponse = await fetch(`https://api.xero.com/api.xro/2.0/Invoices`, {
+    console.log(`Fetching invoices from Xero (page ${page}, size ${pageSize})...`);
+    const invoicesResponse = await fetch(`https://api.xero.com/api.xro/2.0/Invoices?page=${page}&pagesize=${pageSize}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -122,6 +134,12 @@ exports.handler = async function(event, context) {
     const response = {
       success: true,
       tenantId: tenantId,
+      pagination: {
+        page: page,
+        pageSize: pageSize,
+        recordsReturned: invoices.length,
+        nextPage: invoices.length === pageSize ? page + 1 : null
+      },
       summary: {
         totalInvoices: invoices.length,
         totalAmount: formattedInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
