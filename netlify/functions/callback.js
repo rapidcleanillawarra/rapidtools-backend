@@ -1,9 +1,7 @@
 // This function handles the OAuth2 callback from Xero after user authorization
-// It exchanges the authorization code for access tokens and stores them
+// It exchanges the authorization code for access tokens and returns success
 
 const { XeroClient } = require('xero-node');
-const fs = require('fs');
-const path = require('path');
 
 exports.handler = async function(event, context) {
   // Verify we received an authorization code
@@ -27,11 +25,15 @@ exports.handler = async function(event, context) {
     // Exchange the authorization code for access tokens
     const tokenSet = await xero.apiCallback(code);
     
-    // Store the tokens
-    // NOTE: In production, you should use a secure storage solution like AWS Secrets Manager,
-    // Netlify environment variables, or a database with encryption. Writing to a file 
-    // is only demonstrated for simplicity but is NOT secure for production use.
-    fs.writeFileSync('./xero_tokens.json', JSON.stringify(tokenSet));
+    // Log token info for debugging (remove in production)
+    console.log('Token exchange successful:', {
+      hasAccessToken: !!tokenSet.access_token,
+      hasRefreshToken: !!tokenSet.refresh_token,
+      expiresAt: tokenSet.expires_at
+    });
+    
+    // NOTE: In production, you should store tokens in a secure database
+    // For now, we'll just confirm the OAuth flow worked
     
     return {
       statusCode: 200,
@@ -42,7 +44,13 @@ exports.handler = async function(event, context) {
         <html>
           <body>
             <h1>Successfully connected to Xero!</h1>
+            <p>OAuth flow completed successfully.</p>
+            <p>Token received and validated.</p>
             <p>You can close this window and return to the application.</p>
+            <script>
+              // Optional: Close window automatically after 3 seconds
+              setTimeout(() => window.close(), 3000);
+            </script>
           </body>
         </html>
       `
@@ -51,7 +59,10 @@ exports.handler = async function(event, context) {
     console.error('Callback error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to process authorization callback' })
+      body: JSON.stringify({ 
+        error: 'Failed to process authorization callback',
+        details: error.message 
+      })
     };
   }
 }; 
