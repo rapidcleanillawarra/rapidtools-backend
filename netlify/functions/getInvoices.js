@@ -1,48 +1,142 @@
-// This function demonstrates Xero API connectivity
-// Note: Without persistent token storage, this serves as a configuration test
-
-const { XeroClient } = require('xero-node');
+// This function fetches invoices from Xero's API
+// For testing: Pass access_token as query parameter
+// Example: /getInvoices?access_token=YOUR_TOKEN
 
 exports.handler = async function(event, context) {
   try {
-    // Initialize the Xero client with the same configuration
-    const xero = new XeroClient({
-      clientId: process.env.XERO_CLIENT_ID,
-      clientSecret: process.env.XERO_CLIENT_SECRET,
-      redirectUris: [process.env.XERO_REDIRECT_URI],
-      scopes: process.env.XERO_SCOPES.split(' ')
-    });
+    // Check if access token is provided as query parameter
+    const accessToken = event.queryStringParameters?.access_token;
     
-    // Since we can't store tokens in serverless functions without a database,
-    // this endpoint will return configuration status and instructions
-    
-    const configStatus = {
-      status: 'Xero client configured successfully',
-      clientConfigured: !!process.env.XERO_CLIENT_ID,
-      redirectUri: process.env.XERO_REDIRECT_URI,
-      scopes: process.env.XERO_SCOPES ? process.env.XERO_SCOPES.split(' ') : [],
-      message: 'To fetch invoices, you need to complete the OAuth flow first',
-      instructions: {
-        step1: 'Visit /auth endpoint to start OAuth flow',
-        step2: 'Complete Xero authentication',
-        step3: 'For production, implement persistent token storage (database)',
-        note: 'Serverless functions cannot store tokens in files'
+    if (!accessToken) {
+      // Return configuration status if no token provided
+      const configStatus = {
+        status: 'Xero client configured successfully',
+        clientConfigured: !!process.env.XERO_CLIENT_ID,
+        redirectUri: process.env.XERO_REDIRECT_URI,
+        scopes: process.env.XERO_SCOPES ? process.env.XERO_SCOPES.split(' ') : [],
+        message: 'To fetch invoices, provide access_token as query parameter',
+        instructions: {
+          step1: 'Complete OAuth flow at /auth endpoint',
+          step2: 'Copy access_token from success page or logs',
+          step3: 'Call: /getInvoices?access_token=YOUR_TOKEN',
+          step4: 'For production, implement persistent token storage (database)',
+          note: 'This is a temporary testing solution'
+        },
+        example: '/getInvoices?access_token=eyJhbGciOiJSUzI1NiIs...'
+      };
+      
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET'
+        },
+        body: JSON.stringify(configStatus, null, 2)
+      };
+    }
+
+    console.log('Fetching invoices with provided access token...');
+
+    // Step 1: Get tenant information
+    console.log('Getting tenant information...');
+    const tenantsResponse = await fetch('https://api.xero.com/connections', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
-    };
+    });
+
+    if (!tenantsResponse.ok) {
+      const errorText = await tenantsResponse.text();
+      throw new Error(`Failed to get tenants: ${tenantsResponse.status} ${tenantsResponse.statusText} - ${errorText}`);
+    }
+
+    const tenants = await tenantsResponse.json();
     
-    // Return the configuration status with CORS headers
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No connected Xero organizations found');
+    }
+
+    const firstTenant = tenants[0];
+    console.log('Using tenant:', {
+      tenantId: firstTenant.tenantId,
+      tenantName: firstTenant.tenantName,
+      tenantType: firstTenant.tenantType
+    });
+
+    // Step 2: Fetch invoices from Xero Accounting API
+    console.log('Fetching invoices from Xero...');
+    const invoicesResponse = await fetch(`https://api.xero.com/api.xro/2.0/Invoices`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Xero-tenant-id': firstTenant.tenantId
+      }
+    });
+
+    if (!invoicesResponse.ok) {
+      const errorText = await invoicesResponse.text();
+      throw new Error(`Failed to fetch invoices: ${invoicesResponse.status} ${invoicesResponse.statusText} - ${errorText}`);
+    }
+
+    const invoicesData = await invoicesResponse.json();
+    const invoices = invoicesData.Invoices || [];
+
+    console.log(`Successfully fetched ${invoices.length} invoices`);
+
+    // Format the response with useful information
+    const formattedInvoices = invoices.map(invoice => ({
+      invoiceID: invoice.InvoiceID,
+      invoiceNumber: invoice.InvoiceNumber,
+      type: invoice.Type,
+      status: invoice.Status,
+      date: invoice.Date,
+      dueDate: invoice.DueDate,
+      total: invoice.Total,
+      amountDue: invoice.AmountDue,
+      amountPaid: invoice.AmountPaid,
+      contact: {
+        contactID: invoice.Contact?.ContactID,
+        name: invoice.Contact?.Name
+      },
+      currencyCode: invoice.CurrencyCode,
+      reference: invoice.Reference
+    }));
+
+    const response = {
+      success: true,
+      tenant: {
+        tenantId: firstTenant.tenantId,
+        tenantName: firstTenant.tenantName,
+        tenantType: firstTenant.tenantType
+      },
+      summary: {
+        totalInvoices: invoices.length,
+        totalAmount: invoices.reduce((sum, inv) => sum + (inv.Total || 0), 0),
+        totalAmountDue: invoices.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
+      },
+      invoices: formattedInvoices,
+      fetchedAt: new Date().toISOString()
+    };
+
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*', // In production, specify your domain instead of *
+        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET'
       },
-      body: JSON.stringify(configStatus, null, 2)
+      body: JSON.stringify(response, null, 2)
     };
+
   } catch (error) {
-    console.error('Error in getInvoices:', error);
+    console.error('Error fetching invoices:', error);
+    
     return {
       statusCode: 500,
       headers: {
@@ -50,10 +144,16 @@ exports.handler = async function(event, context) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        error: 'Configuration error',
+        success: false,
+        error: 'Failed to fetch invoices from Xero',
         details: error.message,
-        suggestion: 'Check environment variables are set correctly'
-      })
+        suggestion: 'Check if access token is valid and not expired',
+        troubleshooting: {
+          step1: 'Verify token is not expired (tokens last 30 minutes)',
+          step2: 'Ensure token has accounting.transactions scope',
+          step3: 'Check Netlify function logs for detailed error'
+        }
+      }, null, 2)
     };
   }
 }; 
