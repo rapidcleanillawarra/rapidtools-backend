@@ -33,24 +33,14 @@ exports.handler = async function(event, context) {
       throw new Error(`Missing environment variables: ${missingVars.join(', ')}`);
     }
 
-    console.log('Initializing Xero client with configuration:', {
+    console.log('Processing Xero OAuth callback:', {
       clientId: requiredVars.XERO_CLIENT_ID,
-      clientSecret: requiredVars.XERO_CLIENT_SECRET?.replace(/./g, '*'), // Masked for logs
       redirectUri: requiredVars.XERO_REDIRECT_URI,
       scopes: requiredVars.XERO_SCOPES,
       state
     });
 
-    const xero = new XeroClient({
-      clientId: requiredVars.XERO_CLIENT_ID,
-      clientSecret: requiredVars.XERO_CLIENT_SECRET,
-      redirectUris: [requiredVars.XERO_REDIRECT_URI],
-      scopes: requiredVars.XERO_SCOPES.split(' ')
-    });
-
-    console.log('Exchanging authorization code for tokens...');
-    
-    // DEBUGGING: Let's manually make the token request to see the raw response
+    // Use direct API call since SDK has bugs
     const tokenRequestBody = new URLSearchParams({
       grant_type: 'authorization_code',
       client_id: requiredVars.XERO_CLIENT_ID,
@@ -59,7 +49,7 @@ exports.handler = async function(event, context) {
       redirect_uri: requiredVars.XERO_REDIRECT_URI
     });
 
-    console.log('Making direct token request to debug...');
+    console.log('Exchanging authorization code for tokens...');
     const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
       method: 'POST',
       headers: {
@@ -68,71 +58,113 @@ exports.handler = async function(event, context) {
       body: tokenRequestBody
     });
 
-    const rawTokenData = await tokenResponse.text();
-    console.log('Raw token response:', {
-      status: tokenResponse.status,
-      statusText: tokenResponse.statusText,
-      headers: Object.fromEntries(tokenResponse.headers.entries()),
-      body: rawTokenData
-    });
-
-    let parsedTokenData;
-    try {
-      parsedTokenData = JSON.parse(rawTokenData);
-      console.log('Parsed token data:', {
-        hasAccessToken: !!parsedTokenData.access_token,
-        hasRefreshToken: !!parsedTokenData.refresh_token,
-        tokenType: parsedTokenData.token_type,
-        expiresIn: parsedTokenData.expires_in,
-        scope: parsedTokenData.scope,
-        error: parsedTokenData.error,
-        errorDescription: parsedTokenData.error_description
-      });
-    } catch (parseError) {
-      console.error('Failed to parse token response as JSON:', parseError.message);
-      throw new Error(`Invalid token response: ${rawTokenData}`);
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      throw new Error(`Token exchange failed: ${tokenResponse.status} ${tokenResponse.statusText} - ${errorText}`);
     }
 
-    if (parsedTokenData.error) {
-      throw new Error(`Xero API Error: ${parsedTokenData.error} - ${parsedTokenData.error_description}`);
-    }
-
-    if (!parsedTokenData.access_token) {
-      throw new Error(`No access token in response. Full response: ${JSON.stringify(parsedTokenData)}`);
-    }
-
-    // Now try the SDK method
-    console.log('Raw token exchange successful, now trying SDK method...');
-    const tokenSet = await xero.apiCallback(code);
+    const tokenData = await tokenResponse.json();
     
-    console.log('SDK Token exchange result:', {
-      access_token: tokenSet.access_token?.substring(0, 10) + '...', // Partial for security
-      refresh_token: !!tokenSet.refresh_token,
-      expires_at: tokenSet.expires_at ? new Date(tokenSet.expires_at * 1000).toISOString() : 'undefined',
-      tenant_id: tokenSet.tenant_id
+    if (tokenData.error) {
+      throw new Error(`Xero API Error: ${tokenData.error} - ${tokenData.error_description}`);
+    }
+
+    if (!tokenData.access_token) {
+      throw new Error(`No access token in response: ${JSON.stringify(tokenData)}`);
+    }
+
+    console.log('Token exchange successful:', {
+      access_token: tokenData.access_token.substring(0, 20) + '...',
+      refresh_token: !!tokenData.refresh_token,
+      token_type: tokenData.token_type,
+      expires_in: tokenData.expires_in,
+      scope: tokenData.scope
     });
 
-    // For production: Store tokens in database here
+    // Get tenant information using the access token
+    console.log('Fetching tenant information...');
+    const tenantsResponse = await fetch('https://api.xero.com/connections', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let tenantInfo = null;
+    if (tenantsResponse.ok) {
+      const tenants = await tenantsResponse.json();
+      tenantInfo = tenants[0]; // Get first tenant
+      console.log('Tenant info retrieved:', {
+        tenantId: tenantInfo?.tenantId,
+        tenantName: tenantInfo?.tenantName,
+        tenantType: tenantInfo?.tenantType
+      });
+    }
+
+    // In production: Store tokens in database here
+    // For now, we'll just confirm success
+    
+    const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
+    
     const successHtml = `
       <html>
         <head>
           <title>Xero Connection Successful</title>
           <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 2rem; }
-            .success { color: #2ecc71; }
-            .info { color: #3498db; margin-top: 1rem; }
+            body { 
+              font-family: Arial, sans-serif; 
+              text-align: center; 
+              padding: 2rem;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              min-height: 100vh;
+              margin: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255,255,255,0.1);
+              padding: 2rem;
+              border-radius: 10px;
+              backdrop-filter: blur(10px);
+            }
+            .success { color: #2ecc71; font-size: 3rem; margin-bottom: 1rem; }
+            .info { margin-top: 1rem; }
+            .details { 
+              background: rgba(255,255,255,0.1); 
+              padding: 1rem; 
+              border-radius: 5px; 
+              margin: 1rem 0;
+            }
           </style>
         </head>
         <body>
-          <h1 class="success">✓ Xero Connection Successful</h1>
-          <div class="info">
-            <p>You can now close this window and return to the application.</p>
-            <p>Token expires: ${tokenSet.expires_at ? new Date(tokenSet.expires_at * 1000).toLocaleString() : 'Unknown'}</p>
+          <div class="container">
+            <div class="success">✓</div>
+            <h1>Xero Connection Successful!</h1>
+            <div class="details">
+              <p><strong>Organization:</strong> ${tenantInfo?.tenantName || 'Connected'}</p>
+              <p><strong>Token expires:</strong> ${expiresAt.toLocaleString()}</p>
+              <p><strong>Scopes:</strong> ${tokenData.scope}</p>
+            </div>
+            <div class="info">
+              <p>You can now close this window and return to the application.</p>
+              <p>Your Xero integration is ready to use!</p>
+            </div>
           </div>
           <script>
-            setTimeout(() => window.close(), 3000);
+            setTimeout(() => window.close(), 5000);
             if (window.opener) {
-              window.opener.postMessage('xero-auth-success', '*');
+              window.opener.postMessage({
+                type: 'xero-auth-success',
+                data: {
+                  tenantId: '${tenantInfo?.tenantId || ''}',
+                  tenantName: '${tenantInfo?.tenantName || ''}',
+                  expiresAt: '${expiresAt.toISOString()}'
+                }
+              }, '*');
             }
           </script>
         </body>
@@ -150,13 +182,7 @@ exports.handler = async function(event, context) {
       message: error.message,
       stack: error.stack,
       code,
-      state,
-      env: {
-        clientId: !!process.env.XERO_CLIENT_ID,
-        clientSecret: !!process.env.XERO_CLIENT_SECRET,
-        redirectUri: process.env.XERO_REDIRECT_URI,
-        scopes: process.env.XERO_SCOPES
-      }
+      state
     });
 
     const errorHtml = `
@@ -164,27 +190,46 @@ exports.handler = async function(event, context) {
         <head>
           <title>Xero Connection Failed</title>
           <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 2rem; }
-            .error { color: #e74c3c; }
+            body { 
+              font-family: Arial, sans-serif; 
+              text-align: center; 
+              padding: 2rem;
+              background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+              color: white;
+              min-height: 100vh;
+              margin: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255,255,255,0.1);
+              padding: 2rem;
+              border-radius: 10px;
+              backdrop-filter: blur(10px);
+            }
+            .error { color: #ff4757; font-size: 3rem; margin-bottom: 1rem; }
             .details { 
-              background: #f8f9fa; 
+              background: rgba(255,255,255,0.1); 
               padding: 1rem; 
-              margin: 1rem auto; 
-              max-width: 600px;
+              border-radius: 5px; 
+              margin: 1rem 0;
               text-align: left;
               font-family: monospace;
             }
           </style>
         </head>
         <body>
-          <h1 class="error">✗ Xero Connection Failed</h1>
-          <div class="details">
-            <p><strong>Error:</strong> ${error.message}</p>
-            <p><strong>Code:</strong> ${code}</p>
-            <p><strong>State:</strong> ${state}</p>
-            <p>Please check the Netlify function logs for details.</p>
+          <div class="container">
+            <div class="error">✗</div>
+            <h1>Xero Connection Failed</h1>
+            <div class="details">
+              <p><strong>Error:</strong> ${error.message}</p>
+              <p><strong>Code:</strong> ${code}</p>
+              <p><strong>State:</strong> ${state}</p>
+            </div>
+            <button onclick="window.close()" style="padding: 10px 20px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer;">Close Window</button>
           </div>
-          <button onclick="window.close()">Close Window</button>
         </body>
       </html>
     `;
