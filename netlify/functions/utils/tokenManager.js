@@ -1,4 +1,5 @@
 const { db } = require('./firebaseInit');
+const admin = require('firebase-admin');
 
 // Store tokens in Firestore
 const storeTokens = async (userId, tokenData, tenantInfo) => {
@@ -24,7 +25,8 @@ const getValidToken = async (userId) => {
   const tokenData = doc.data();
   
   // Refresh token if expired (or within 5 minute buffer)
-  if (Date.now() > tokenData.expiresAt - 300000) {
+  const expiresAtTime = tokenData.expiresAt.toDate ? tokenData.expiresAt.toDate().getTime() : tokenData.expiresAt.getTime();
+  if (Date.now() > expiresAtTime - 300000) {
     const response = await fetch('https://identity.xero.com/connect/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

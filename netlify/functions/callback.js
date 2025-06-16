@@ -103,8 +103,14 @@ exports.handler = async function(event, context) {
       });
     }
 
-    // After getting tokenData and tenantInfo:
-    await storeTokens('user123', tokenData, tenantInfo); // TODO: Replace 'user123' with actual user ID
+    // Store tokens in Firestore
+    try {
+      await storeTokens('user123', tokenData, tenantInfo); // TODO: Replace 'user123' with actual user ID
+      console.log('Tokens stored successfully in Firestore');
+    } catch (storeError) {
+      console.error('Failed to store tokens:', storeError);
+      // Continue with success page but log the error
+    }
 
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
     

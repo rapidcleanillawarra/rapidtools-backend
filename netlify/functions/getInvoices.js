@@ -6,38 +6,8 @@ const { getValidToken } = require('./utils/tokenManager');
 
 exports.handler = async function(event, context) {
   try {
-    // Replace access_token param check with:
+    // Get valid token from Firestore (auto-refresh if needed)
     const accessToken = await getValidToken('user123'); // TODO: Replace 'user123' with actual user ID
-    
-    if (!accessToken) {
-      // Return configuration status if no token provided
-      const configStatus = {
-        status: 'Xero client configured successfully',
-        clientConfigured: !!process.env.XERO_CLIENT_ID,
-        redirectUri: process.env.XERO_REDIRECT_URI,
-        scopes: process.env.XERO_SCOPES ? process.env.XERO_SCOPES.split(' ') : [],
-        message: 'To fetch invoices, provide access_token as query parameter',
-        instructions: {
-          step1: 'Complete OAuth flow at /auth endpoint',
-          step2: 'Copy access_token from success page or logs',
-          step3: 'Call: /getInvoices?access_token=YOUR_TOKEN',
-          step4: 'For production, implement persistent token storage (database)',
-          note: 'This is a temporary testing solution'
-        },
-        example: '/getInvoices?access_token=eyJhbGciOiJSUzI1NiIs...'
-      };
-      
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'GET'
-        },
-        body: JSON.stringify(configStatus, null, 2)
-      };
-    }
 
     console.log('Fetching invoices with provided access token...');
 
@@ -138,6 +108,39 @@ exports.handler = async function(event, context) {
 
   } catch (error) {
     console.error('Error fetching invoices:', error);
+    
+    // Handle specific token errors
+    if (error.message === 'No Xero tokens found for user') {
+      return {
+        statusCode: 401,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Authentication required',
+          message: 'Please complete Xero OAuth flow first',
+          authUrl: '/.netlify/functions/auth'
+        }, null, 2)
+      };
+    }
+    
+    if (error.message.includes('Token refresh failed')) {
+      return {
+        statusCode: 401,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Token refresh failed',
+          message: 'Please re-authenticate with Xero',
+          authUrl: '/.netlify/functions/auth'
+        }, null, 2)
+      };
+    }
     
     return {
       statusCode: 500,
