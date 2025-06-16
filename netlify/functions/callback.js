@@ -129,6 +129,7 @@ exports.handler = async function(event, context) {
               padding: 2rem;
               border-radius: 10px;
               backdrop-filter: blur(10px);
+              max-width: 800px;
             }
             .success { color: #2ecc71; font-size: 3rem; margin-bottom: 1rem; }
             .info { margin-top: 1rem; }
@@ -138,6 +139,37 @@ exports.handler = async function(event, context) {
               border-radius: 5px; 
               margin: 1rem 0;
             }
+            .token-section {
+              background: rgba(0,0,0,0.3);
+              padding: 1rem;
+              border-radius: 5px;
+              margin: 1rem 0;
+              text-align: left;
+            }
+            .token-display {
+              background: rgba(0,0,0,0.5);
+              padding: 10px;
+              border-radius: 3px;
+              font-family: monospace;
+              font-size: 12px;
+              word-break: break-all;
+              margin: 10px 0;
+              cursor: pointer;
+              border: 1px solid rgba(255,255,255,0.3);
+            }
+            .copy-btn {
+              background: #2ecc71;
+              color: white;
+              border: none;
+              padding: 5px 10px;
+              border-radius: 3px;
+              cursor: pointer;
+              font-size: 12px;
+              margin-top: 5px;
+            }
+            .copy-btn:hover {
+              background: #27ae60;
+            }
           </style>
         </head>
         <body>
@@ -146,8 +178,19 @@ exports.handler = async function(event, context) {
             <h1>Xero Connection Successful!</h1>
             <div class="details">
               <p><strong>Organization:</strong> ${tenantInfo?.tenantName || 'Connected'}</p>
+              <p><strong>Tenant ID:</strong> ${tenantInfo?.tenantId || 'N/A'}</p>
               <p><strong>Token expires:</strong> ${expiresAt.toLocaleString()}</p>
               <p><strong>Scopes:</strong> ${tokenData.scope}</p>
+            </div>
+            <div class="token-section">
+              <h3>Access Token (for testing):</h3>
+              <div class="token-display" id="tokenDisplay" onclick="copyToken()">
+                ${tokenData.access_token}
+              </div>
+              <button class="copy-btn" onclick="copyToken()">Copy Token</button>
+              <p style="font-size: 12px; margin-top: 10px;">
+                <strong>Note:</strong> Token is also logged to browser console. Click token or button to copy.
+              </p>
             </div>
             <div class="info">
               <p>You can now close this window and return to the application.</p>
@@ -155,14 +198,49 @@ exports.handler = async function(event, context) {
             </div>
           </div>
           <script>
-            setTimeout(() => window.close(), 5000);
+            // Log token to console
+            const accessToken = '${tokenData.access_token}';
+            const tenantId = '${tenantInfo?.tenantId || ''}';
+            
+            console.log('=== XERO ACCESS TOKEN ===');
+            console.log('Access Token:', accessToken);
+            console.log('Tenant ID:', tenantId);
+            console.log('Expires At:', '${expiresAt.toISOString()}');
+            console.log('Test URL:', \`/.netlify/functions/getInvoices?access_token=\${accessToken}\`);
+            console.log('========================');
+            
+            // Copy token function
+            function copyToken() {
+              navigator.clipboard.writeText(accessToken).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#27ae60';
+                setTimeout(() => {
+                  btn.textContent = originalText;
+                  btn.style.background = '#2ecc71';
+                }, 2000);
+              }).catch(err => {
+                console.error('Failed to copy token:', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = accessToken;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+              });
+            }
+            
+            setTimeout(() => window.close(), 10000); // Extended to 10 seconds for token copying
             if (window.opener) {
               window.opener.postMessage({
                 type: 'xero-auth-success',
                 data: {
                   tenantId: '${tenantInfo?.tenantId || ''}',
                   tenantName: '${tenantInfo?.tenantName || ''}',
-                  expiresAt: '${expiresAt.toISOString()}'
+                  expiresAt: '${expiresAt.toISOString()}',
+                  accessToken: accessToken
                 }
               }, '*');
             }
