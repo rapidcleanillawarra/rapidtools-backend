@@ -1,0 +1,7 @@
+# This configuration tells Netlify to only deploy serverless functions, not a static site.
+# It ensures our API endpoints are available while keeping the front-end separate.
+
+[build]
+  functions = "netlify/functions"
+  command   = "echo Deploying functions"
+  publish   = "." 

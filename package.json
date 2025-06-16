@@ -1,0 +1,11 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Netlify functions for Xero API integration",
+  "scripts": {
+    "deploy": "echo Deploying functions"
+  },
+  "dependencies": {
+    "xero-node": "^5.0.0"
+  }
+} 
