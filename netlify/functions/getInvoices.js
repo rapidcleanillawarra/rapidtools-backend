@@ -29,6 +29,7 @@ exports.handler = async function(event, context) {
     const accessToken = await getValidToken(tenantId);
 
     console.log('Fetching invoices with access token for tenant:', tenantId);
+    console.log('Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
     // Fetch invoices from Xero Accounting API using the provided tenant ID
     console.log('Fetching invoices from Xero...');
@@ -44,6 +45,18 @@ exports.handler = async function(event, context) {
     if (!invoicesResponse.ok) {
       const errorText = await invoicesResponse.text();
       throw new Error(`Failed to fetch invoices: ${invoicesResponse.status} ${invoicesResponse.statusText} - ${errorText}`);
+    }
+
+    // Check if response is JSON before parsing
+    const contentType = invoicesResponse.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await invoicesResponse.text();
+      console.error('Non-JSON response from Xero:', {
+        status: invoicesResponse.status,
+        contentType,
+        responseText: responseText.substring(0, 500) // Log first 500 chars
+      });
+      throw new Error(`Xero returned non-JSON response. Content-Type: ${contentType}. Response: ${responseText.substring(0, 200)}`);
     }
 
     const invoicesData = await invoicesResponse.json();
