@@ -2,9 +2,74 @@
 // Supports both GET and POST methods:
 // GET: /getInvoices?tenant_id=YOUR_TENANT_ID&invoice_numbers=INV-001,INV-002
 // POST: /getInvoices with payload: {"tenant_id": "YOUR_TENANT_ID", "invoice_numbers": ["INV-001", "INV-002"]}
+// POST with filters: {"tenant_id": "ID", "filters": {"status": ["PAID"], "date_from": "2023-01-01"}}
 
 const { getValidToken } = require('./utils/tokenManager');
 const { parseString } = require('xml2js');
+
+// Helper function to build Xero API where clause
+function buildWhereClause(filters) {
+  const conditions = [];
+  
+  // Handle status filter in where clause (when combined with specific invoices)
+  if (filters.status && Array.isArray(filters.status) && filters.status.length > 0) {
+    const validStatuses = ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID', 'VOIDED', 'DELETED'];
+    const filteredStatuses = filters.status.filter(status => validStatuses.includes(status.toUpperCase()));
+    if (filteredStatuses.length > 0) {
+      const statusConditions = filteredStatuses.map(status => `Status="${status}"`).join(' OR ');
+      conditions.push(`(${statusConditions})`);
+    }
+  }
+  
+  if (filters.invoice_number_contains) {
+    conditions.push(`InvoiceNumber.Contains("${filters.invoice_number_contains}")`);
+  }
+  
+  if (filters.date_from) {
+    conditions.push(`Date >= DateTime(${new Date(filters.date_from).getFullYear()}, ${new Date(filters.date_from).getMonth() + 1}, ${new Date(filters.date_from).getDate()})`);
+  }
+  
+  if (filters.date_to) {
+    conditions.push(`Date <= DateTime(${new Date(filters.date_to).getFullYear()}, ${new Date(filters.date_to).getMonth() + 1}, ${new Date(filters.date_to).getDate()})`);
+  }
+  
+  if (filters.due_date_from) {
+    conditions.push(`DueDate >= DateTime(${new Date(filters.due_date_from).getFullYear()}, ${new Date(filters.due_date_from).getMonth() + 1}, ${new Date(filters.due_date_from).getDate()})`);
+  }
+  
+  if (filters.due_date_to) {
+    conditions.push(`DueDate <= DateTime(${new Date(filters.due_date_to).getFullYear()}, ${new Date(filters.due_date_to).getMonth() + 1}, ${new Date(filters.due_date_to).getDate()})`);
+  }
+  
+  if (filters.total_greater_than) {
+    conditions.push(`Total >= ${filters.total_greater_than}`);
+  }
+  
+  if (filters.total_less_than) {
+    conditions.push(`Total <= ${filters.total_less_than}`);
+  }
+  
+  if (filters.amount_due_greater_than) {
+    conditions.push(`AmountDue >= ${filters.amount_due_greater_than}`);
+  }
+  
+  if (filters.contact_name_contains) {
+    conditions.push(`Contact.Name.Contains("${filters.contact_name_contains}")`);
+  }
+  
+  return conditions.length > 0 ? conditions.join(' AND ') : null;
+}
+
+// Helper function to format date for Xero API
+function formatDateForXero(dateString) {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+  } catch {
+    return null;
+  }
+}
 
 exports.handler = async function(event, context) {
   try {
@@ -21,7 +86,7 @@ exports.handler = async function(event, context) {
       };
     }
 
-    let tenantId, invoiceIds, invoiceNumbers, page, pageSize;
+    let tenantId, invoiceIds, invoiceNumbers, page, pageSize, filters = {};
 
     // Handle both GET and POST requests
     if (event.httpMethod === 'GET') {
@@ -59,6 +124,7 @@ exports.handler = async function(event, context) {
         requestBody.invoice_numbers.join(',') : requestBody.invoice_numbers;
       page = parseInt(requestBody.page || '1');
       pageSize = Math.min(parseInt(requestBody.page_size || '10'), 100);
+      filters = requestBody.filters || {};
     } else {
       return {
         statusCode: 405,
@@ -105,6 +171,21 @@ exports.handler = async function(event, context) {
                 invoice_numbers: ['INV-001', 'INV-002']
               }
             },
+            post_withFilters: {
+              method: 'POST',
+              body: {
+                tenant_id: 'YOUR_TENANT_ID',
+                filters: {
+                  status: ['PAID', 'AUTHORISED'],
+                  date_from: '2023-01-01',
+                  date_to: '2023-12-31',
+                  due_date_from: '2023-06-01',
+                  invoice_number_contains: 'INV',
+                  total_greater_than: 100,
+                  contact_name_contains: 'ABC Company'
+                }
+              }
+            },
             post_specificByIds: {
               method: 'POST',
               body: {
@@ -118,7 +199,20 @@ exports.handler = async function(event, context) {
             invoice_ids: 'Optional - Invoice IDs (comma-separated for GET, array for POST)',
             invoice_numbers: 'Optional - Invoice numbers (comma-separated for GET, array for POST)',
             page: 'Optional - Page number (default: 1)',
-            page_size: 'Optional - Records per page (default: 10, max: 100)'
+            page_size: 'Optional - Records per page (default: 10, max: 100)',
+            filters: {
+              description: 'Optional - Filters for POST requests only',
+              status: 'Array of statuses: ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID", "VOIDED", "DELETED"]',
+              date_from: 'Date string (YYYY-MM-DD) - Invoice date from',
+              date_to: 'Date string (YYYY-MM-DD) - Invoice date to',
+              due_date_from: 'Date string (YYYY-MM-DD) - Due date from',
+              due_date_to: 'Date string (YYYY-MM-DD) - Due date to',
+              invoice_number_contains: 'String - Filter by invoice number containing text',
+              total_greater_than: 'Number - Minimum total amount',
+              total_less_than: 'Number - Maximum total amount',
+              amount_due_greater_than: 'Number - Minimum amount due',
+              contact_name_contains: 'String - Filter by contact name containing text'
+            }
           }
         }, null, 2)
       };
@@ -129,6 +223,7 @@ exports.handler = async function(event, context) {
 
     console.log('Fetching invoices with access token for tenant:', tenantId);
     console.log('Request method:', event.httpMethod);
+    console.log('Filters applied:', Object.keys(filters).length > 0 ? filters : 'None');
     console.log('Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
     // Check if specific invoice IDs or numbers are requested
@@ -150,6 +245,7 @@ exports.handler = async function(event, context) {
       };
     }
 
+    // Handle specific invoice IDs or numbers with optional filtering
     if (invoiceIds) {
       // Fetch specific invoices by IDs
       console.log('Fetching specific invoices by IDs:', invoiceIds);
@@ -189,9 +285,19 @@ exports.handler = async function(event, context) {
         };
       }
 
-      queryParams.push(`IDs=${idsArray.join(',')}`);
+      // Use where clause to combine IDs with filters
+      const whereConditions = [`InvoiceID=Guid("${idsArray.join('") OR InvoiceID=Guid("')}")`];
+      
+      // Add other filter conditions
+      const additionalFilters = buildWhereClause(filters);
+      if (additionalFilters) {
+        whereConditions.push(additionalFilters);
+      }
+      
+      queryParams.push(`where=${encodeURIComponent(`(${whereConditions.join(') AND (')})`)}`);
+      
     } else if (invoiceNumbers) {
-      // Fetch specific invoices by Numbers
+      // Fetch specific invoices by Numbers with optional filtering
       console.log('Fetching specific invoices by Numbers:', invoiceNumbers);
       
       // Validate and clean invoice numbers
@@ -229,14 +335,41 @@ exports.handler = async function(event, context) {
         };
       }
 
-      queryParams.push(`InvoiceNumbers=${numbersArray.join(',')}`);
-    } else {
-      // Fetch all invoices with pagination (existing functionality)
-      queryParams.push(`page=${page}`);
-      queryParams.push(`pagesize=${pageSize}`);
+      // Use where clause to combine invoice numbers with filters
+      const whereConditions = [`InvoiceNumber="${numbersArray.join('" OR InvoiceNumber="')}"`];
       
-      console.log(`Fetching all invoices from Xero (page ${page}, size ${pageSize})...`);
+      // Add other filter conditions
+      const additionalFilters = buildWhereClause(filters);
+      if (additionalFilters) {
+        whereConditions.push(additionalFilters);
+      }
+      
+      queryParams.push(`where=${encodeURIComponent(`(${whereConditions.join(') AND (')})`)}`);
+      
+    } else {
+      // Apply filters for general invoice fetching
+      
+      // Handle status filter using Xero's Statuses parameter (only when not using specific IDs/numbers)
+      if (filters.status && Array.isArray(filters.status) && filters.status.length > 0) {
+        const validStatuses = ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID', 'VOIDED', 'DELETED'];
+        const filteredStatuses = filters.status.filter(status => validStatuses.includes(status.toUpperCase()));
+        if (filteredStatuses.length > 0) {
+          queryParams.push(`Statuses=${filteredStatuses.join(',')}`);
+        }
+      }
+      
+      // Build where clause for other filters
+      const whereClause = buildWhereClause(filters);
+      if (whereClause) {
+        queryParams.push(`where=${encodeURIComponent(whereClause)}`);
+      }
     }
+    
+    // Add pagination for all cases
+    queryParams.push(`page=${page}`);
+    queryParams.push(`pagesize=${pageSize}`);
+    
+    console.log(`Fetching invoices from Xero (page ${page}, size ${pageSize})...`);
 
     // Build final API URL
     if (queryParams.length > 0) {
@@ -332,12 +465,16 @@ exports.handler = async function(event, context) {
     }));
 
     // Build response based on request type
-    const searchType = invoiceIds ? 'specific_invoices_by_id' : (invoiceNumbers ? 'specific_invoices_by_number' : 'paginated_all');
+    const searchType = invoiceIds ? 'specific_invoices_by_id' : 
+                      (invoiceNumbers ? 'specific_invoices_by_number' : 
+                      (Object.keys(filters).length > 0 ? 'filtered_invoices' : 'paginated_all'));
+    
     const response = {
       success: true,
       tenantId: tenantId,
       requestMethod: event.httpMethod,
       requestType: searchType,
+      appliedFilters: Object.keys(filters).length > 0 ? filters : null,
       ...(invoiceIds || invoiceNumbers ? {
         requestedItems: (invoiceIds || invoiceNumbers).split(',').map(item => item.trim()),
         foundCount: invoices.length
@@ -352,7 +489,11 @@ exports.handler = async function(event, context) {
       summary: {
         totalInvoices: invoices.length,
         totalAmount: formattedInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
-        totalAmountDue: formattedInvoices.reduce((sum, inv) => sum + (inv.amountDue || 0), 0)
+        totalAmountDue: formattedInvoices.reduce((sum, inv) => sum + (inv.amountDue || 0), 0),
+        statusBreakdown: formattedInvoices.reduce((acc, inv) => {
+          acc[inv.status] = (acc[inv.status] || 0) + 1;
+          return acc;
+        }, {})
       },
       invoices: formattedInvoices,
       fetchedAt: new Date().toISOString()
