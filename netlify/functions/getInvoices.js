@@ -1,15 +1,78 @@
 // This function fetches invoices from Xero's API
-// For testing: Pass access_token as query parameter
-// Example: /getInvoices?access_token=YOUR_TOKEN
-// New: Fetch specific invoices by IDs: /getInvoices?tenant_id=YOUR_TENANT_ID&invoice_ids=id1,id2,id3
+// Supports both GET and POST methods:
+// GET: /getInvoices?tenant_id=YOUR_TENANT_ID&invoice_numbers=INV-001,INV-002
+// POST: /getInvoices with payload: {"tenant_id": "YOUR_TENANT_ID", "invoice_numbers": ["INV-001", "INV-002"]}
 
 const { getValidToken } = require('./utils/tokenManager');
 const { parseString } = require('xml2js');
 
 exports.handler = async function(event, context) {
   try {
-    // Get tenant ID from query parameters or use a default approach
-    const tenantId = event.queryStringParameters?.tenant_id;
+    // Handle preflight CORS request
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+        },
+        body: ''
+      };
+    }
+
+    let tenantId, invoiceIds, invoiceNumbers, page, pageSize;
+
+    // Handle both GET and POST requests
+    if (event.httpMethod === 'GET') {
+      // GET request - parameters from URL
+      tenantId = event.queryStringParameters?.tenant_id;
+      invoiceIds = event.queryStringParameters?.invoice_ids;
+      invoiceNumbers = event.queryStringParameters?.invoice_numbers;
+      page = parseInt(event.queryStringParameters?.page || '1');
+      pageSize = Math.min(parseInt(event.queryStringParameters?.page_size || '10'), 100);
+    } else if (event.httpMethod === 'POST') {
+      // POST request - parameters from body
+      let requestBody;
+      try {
+        requestBody = JSON.parse(event.body || '{}');
+      } catch (error) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            success: false,
+            error: 'Invalid JSON in request body',
+            message: 'Please provide valid JSON with tenant_id and invoice parameters'
+          }, null, 2)
+        };
+      }
+
+      tenantId = requestBody.tenant_id;
+      // Support both array and comma-separated string formats
+      invoiceIds = Array.isArray(requestBody.invoice_ids) ? 
+        requestBody.invoice_ids.join(',') : requestBody.invoice_ids;
+      invoiceNumbers = Array.isArray(requestBody.invoice_numbers) ? 
+        requestBody.invoice_numbers.join(',') : requestBody.invoice_numbers;
+      page = parseInt(requestBody.page || '1');
+      pageSize = Math.min(parseInt(requestBody.page_size || '10'), 100);
+    } else {
+      return {
+        statusCode: 405,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Method not allowed',
+          message: 'This endpoint accepts GET and POST requests only'
+        }, null, 2)
+      };
+    }
     
     if (!tenantId) {
       return {
@@ -21,18 +84,41 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({ 
           success: false,
           error: 'Missing tenant_id parameter',
-          message: 'Please provide tenant_id as a query parameter',
+          message: 'Please provide tenant_id',
           examples: {
-            basic: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID',
-            withPagination: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&page=1&page_size=10',
-            specificInvoices: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&invoice_ids=id1,id2,id3',
-            specificInvoicesLarge: '/.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&invoice_ids=["id1","id2",...] (POST body for >40 IDs)'
+            get_basic: 'GET /.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID',
+            get_withPagination: 'GET /.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&page=1&page_size=10',
+            get_specificInvoicesById: 'GET /.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&invoice_ids=id1,id2,id3',
+            get_specificInvoicesByNumber: 'GET /.netlify/functions/getInvoices?tenant_id=YOUR_TENANT_ID&invoice_numbers=INV-001,INV-002',
+            post_basic: {
+              method: 'POST',
+              body: {
+                tenant_id: 'YOUR_TENANT_ID',
+                page: 1,
+                page_size: 10
+              }
+            },
+            post_specificByNumbers: {
+              method: 'POST',
+              body: {
+                tenant_id: 'YOUR_TENANT_ID',
+                invoice_numbers: ['INV-001', 'INV-002']
+              }
+            },
+            post_specificByIds: {
+              method: 'POST',
+              body: {
+                tenant_id: 'YOUR_TENANT_ID',
+                invoice_ids: ['id1', 'id2', 'id3']
+              }
+            }
           },
           parameters: {
-            tenant_id: 'Required - Xero tenant ID',
-            invoice_ids: 'Optional - Comma-separated invoice IDs (max ~40 due to URL length)',
-            page: 'Optional - Page number (default: 1, ignored when using invoice_ids)',
-            page_size: 'Optional - Records per page (default: 10, max: 100, ignored when using invoice_ids)'
+            tenant_id: 'Required - Xero tenant ID (URL param for GET, body param for POST)',
+            invoice_ids: 'Optional - Invoice IDs (comma-separated for GET, array for POST)',
+            invoice_numbers: 'Optional - Invoice numbers (comma-separated for GET, array for POST)',
+            page: 'Optional - Page number (default: 1)',
+            page_size: 'Optional - Records per page (default: 10, max: 100)'
           }
         }, null, 2)
       };
@@ -42,12 +128,27 @@ exports.handler = async function(event, context) {
     const accessToken = await getValidToken(tenantId);
 
     console.log('Fetching invoices with access token for tenant:', tenantId);
+    console.log('Request method:', event.httpMethod);
     console.log('Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
-    // Check if specific invoice IDs are requested
-    const invoiceIds = event.queryStringParameters?.invoice_ids;
+    // Check if specific invoice IDs or numbers are requested
     let apiUrl = 'https://api.xero.com/api.xro/2.0/Invoices';
     let queryParams = [];
+
+    if (invoiceIds && invoiceNumbers) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          success: false,
+          error: 'Cannot use both invoice_ids and invoice_numbers',
+          message: 'Please use either invoice_ids OR invoice_numbers, not both'
+        }, null, 2)
+      };
+    }
 
     if (invoiceIds) {
       // Fetch specific invoices by IDs
@@ -66,7 +167,7 @@ exports.handler = async function(event, context) {
           body: JSON.stringify({ 
             success: false,
             error: 'Invalid invoice_ids parameter',
-            message: 'Please provide valid comma-separated invoice IDs'
+            message: 'Please provide valid invoice IDs'
           }, null, 2)
         };
       }
@@ -82,18 +183,55 @@ exports.handler = async function(event, context) {
             success: false,
             error: 'Too many invoice IDs',
             message: 'Maximum 40 invoice IDs allowed per request due to URL length limits',
-            suggestion: 'Consider using POST request for larger batches or split into multiple requests',
+            suggestion: 'Use getInvoicesBatch endpoint for larger batches',
             providedCount: idsArray.length
           }, null, 2)
         };
       }
 
       queryParams.push(`IDs=${idsArray.join(',')}`);
+    } else if (invoiceNumbers) {
+      // Fetch specific invoices by Numbers
+      console.log('Fetching specific invoices by Numbers:', invoiceNumbers);
+      
+      // Validate and clean invoice numbers
+      const numbersArray = invoiceNumbers.split(',').map(num => num.trim()).filter(num => num.length > 0);
+      
+      if (numbersArray.length === 0) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            success: false,
+            error: 'Invalid invoice_numbers parameter',
+            message: 'Please provide valid invoice numbers'
+          }, null, 2)
+        };
+      }
+
+      if (numbersArray.length > 40) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            success: false,
+            error: 'Too many invoice numbers',
+            message: 'Maximum 40 invoice numbers allowed per request due to URL length limits',
+            suggestion: 'Use getInvoicesBatch endpoint for larger batches',
+            providedCount: numbersArray.length
+          }, null, 2)
+        };
+      }
+
+      queryParams.push(`InvoiceNumbers=${numbersArray.join(',')}`);
     } else {
       // Fetch all invoices with pagination (existing functionality)
-      const page = parseInt(event.queryStringParameters?.page || '1');
-      const pageSize = Math.min(parseInt(event.queryStringParameters?.page_size || '10'), 100);
-      
       queryParams.push(`page=${page}`);
       queryParams.push(`pagesize=${pageSize}`);
       
@@ -194,20 +332,21 @@ exports.handler = async function(event, context) {
     }));
 
     // Build response based on request type
+    const searchType = invoiceIds ? 'specific_invoices_by_id' : (invoiceNumbers ? 'specific_invoices_by_number' : 'paginated_all');
     const response = {
       success: true,
       tenantId: tenantId,
-      requestType: invoiceIds ? 'specific_invoices' : 'paginated_all',
-      ...(invoiceIds ? {
-        requestedIds: invoiceIds.split(',').map(id => id.trim()),
+      requestMethod: event.httpMethod,
+      requestType: searchType,
+      ...(invoiceIds || invoiceNumbers ? {
+        requestedItems: (invoiceIds || invoiceNumbers).split(',').map(item => item.trim()),
         foundCount: invoices.length
       } : {
         pagination: {
-          page: parseInt(event.queryStringParameters?.page || '1'),
-          pageSize: parseInt(event.queryStringParameters?.page_size || '10'),
+          page: page,
+          pageSize: pageSize,
           recordsReturned: invoices.length,
-          nextPage: invoices.length === parseInt(event.queryStringParameters?.page_size || '10') ? 
-                   parseInt(event.queryStringParameters?.page || '1') + 1 : null
+          nextPage: invoices.length === pageSize ? page + 1 : null
         }
       }),
       summary: {
@@ -225,7 +364,7 @@ exports.handler = async function(event, context) {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET'
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
       },
       body: JSON.stringify(response, null, 2)
     };
