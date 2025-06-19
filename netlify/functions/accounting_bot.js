@@ -151,6 +151,16 @@ const handler = async (event) => {
 
     const message = 'Data received successfully';
     const timestamp_utc = new Date().toISOString();
+    const timestamp_sydney = new Date().toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
 
     const responseData = {
       message,
@@ -160,33 +170,18 @@ const handler = async (event) => {
       xero_total,
       difference,
       xero_paid_status,
-      html_template: `<p class="editor-paragraph" style="font-family: Arial, sans-serif; background: rgb(244, 244, 244); padding: 20px; color: rgb(51, 51, 51); max-width: 600px; margin: auto; border: 1px solid rgb(221, 221, 221); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-  <span style="color: rgb(102, 102, 102);"><strong>Timestamp (UTC): ${timestamp_utc}</strong></span><br />
-  <span style="color: rgb(85, 85, 85);"><strong>Maropost Total:</strong></span>
-  <span style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;"><strong>
-    ${maropost_total}
-  </strong></span><br />
-  <span style="color: rgb(85, 85, 85);"><strong>Xero Total:</strong></span>
-  <span style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;"><strong>
-    ${xero_total}
-  </strong></span><br />
-  <span style="color: rgb(85, 85, 85);"><strong>Difference:</strong></span>
-  <span style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;"><strong>
-    ${difference}
-  </strong></span>
+      html_template: `<p class="editor-paragraph">
+<span style="color: rgb(102, 102, 102);">Timestamp (Sydney): ${timestamp_sydney}</span>
 </p>
-<p class="editor-paragraph" style="font-family: Arial, sans-serif; background: rgb(244, 244, 244); padding: 20px; color: rgb(51, 51, 51); max-width: 600px; margin: auto; border: 1px solid rgb(221, 221, 221); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-  <span style="color: rgb(85, 85, 85);"><strong>Maropost Paid Status:</strong></span>
-  <span style="background: ${maropost_paid_status_background}; color: ${maropost_paid_status_font}; padding: 2px 4px; border-radius: 2px;"><strong>
-    ${maropost_paid_status}
-  </strong></span><br />
-  <span style="color: rgb(85, 85, 85);"><strong>Xero Paid Status:</strong></span>
-  <span style="background: ${xero_paid_status_background}; color: ${xero_paid_status_font}; padding: 2px 4px; border-radius: 2px;"><strong>
-    ${xero_paid_status}
-  </strong></span>
-</p>
-<p class="editor-paragraph" style="font-family: Arial, sans-serif; background: rgb(244, 244, 244); padding: 20px; color: rgb(51, 51, 51); max-width: 600px; margin: auto; border: 1px solid rgb(221, 221, 221); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-  <span><strong>Notes:</strong></span> ${debug_notes}
+<p class="editor-paragraph">
+<span style="color: rgb(85, 85, 85);">Maropost Total:</span><b><strong class="editor-text-bold" style="color: rgb(85, 85, 85);"> </strong></b><b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${maropost_total}</strong></b>
+<span style="color: rgb(85, 85, 85);">Xero Total:</span> <b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${xero_total}</strong></b>
+<span style="color: rgb(85, 85, 85);">Difference</span>: <b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${difference}</strong></b>
+
+<span style="color: rgb(85, 85, 85);">Maropost Paid Status: </span><b><strong class="editor-text-bold" style="background-color: ${maropost_paid_status_background}; color: ${maropost_paid_status_font};">${maropost_paid_status}</strong></b>
+<span style="color: rgb(85, 85, 85);">Xero Paid Status:</span><b><strong class="editor-text-bold" style="color: rgb(85, 85, 85);"> </strong></b><b><strong class="editor-text-bold" style="background-color: ${xero_paid_status_background}; color: ${xero_paid_status_font};">${xero_paid_status}</strong></b>
+
+Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
 </p>`,
       debug: {
         notes: debug_notes,
