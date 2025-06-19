@@ -1,5 +1,5 @@
 const handler = async (event) => {
-  // 1. HTTP Method Validation
+  // Debug Response 1: Method Not Allowed (405)
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -18,7 +18,7 @@ const handler = async (event) => {
   try {
     const { maropostData, xeroData } = JSON.parse(event.body);
 
-    // 2. Input Validation
+    // Debug Response 2: Missing Required Data (400)
     if (!maropostData || !xeroData) {
       return {
         statusCode: 400,
@@ -36,7 +36,7 @@ const handler = async (event) => {
       };
     }
 
-    // 3. OrderID Matching
+    // Debug Response 3: OrderID Mismatch (400)
     const maropostOrderId = maropostData.Order[0].OrderID;
     const xeroRequestedItem = xeroData.requestedItems[0];
 
@@ -59,10 +59,49 @@ const handler = async (event) => {
     const exportedToXero = xeroData.foundCount > 0 && xeroData.invoices.length > 0;
 
     // 5. Prepare Response Data
+    const maropostPaymentsSum = maropostData.Order[0].OrderPayment 
+      ? maropostData.Order[0].OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+      : 0;
+    const maropostGrandTotal = parseFloat(maropostData.Order[0].GrandTotal || 0);
+
+    let maropost_paid_status;
+    if (maropostGrandTotal === 0) {
+      maropost_paid_status = "free";
+    } else if (maropostPaymentsSum === maropostGrandTotal) {
+      maropost_paid_status = "paid";
+    } else if (maropostPaymentsSum > maropostGrandTotal) {
+      maropost_paid_status = "overpaid";
+    } else if (maropostPaymentsSum > 0) {
+      maropost_paid_status = "partial";
+    } else {
+      maropost_paid_status = "unpaid";
+    }
+
+    // Calculate xero_paid_status first
+    const xero_paid_status = exportedToXero
+      ? (() => {
+          const invoice = xeroData.invoices[0];
+          const total = parseFloat(invoice.total || 0);
+          const amountPaid = parseFloat(invoice.amountPaid || 0);
+          const amountDue = parseFloat(invoice.amountDue || 0);
+
+          if (total === amountPaid && amountDue === 0) {
+            return "paid";
+          } else if (amountPaid === 0 && amountDue === 0 && total === 0) {
+            return "free";
+          } else if (total !== amountPaid) {
+            return amountDue > 0 ? "partial" : "overpaid";
+          } else {
+            return "unknown";
+          }
+        })()
+      : "not_exported";
+
     const responseData = {
       message: 'Data received successfully',
       timestamp_utc: new Date().toISOString(),
       maropost_total: maropostData.Order[0].GrandTotal,
+      maropost_paid_status,
       xero_total: exportedToXero ? xeroData.invoices[0].amountDue.toString() : "Not Yet Exported",
       difference: exportedToXero 
         ? (parseFloat(maropostData.Order[0].GrandTotal) === parseFloat(xeroData.invoices[0].amountDue) 
@@ -72,9 +111,27 @@ const handler = async (event) => {
               ).toFixed(2)
           )
         : "Not Available",
+      xero_paid_status,
+      // Flattened style nodes
+      xero_paid_status_background: (() => {
+        switch (xero_paid_status) {
+          case "paid": return "#4CAF50";      // Green
+          case "free": return "#9C27B0";     // Purple
+          case "partial": return "#FFC107";  // Amber
+          case "overpaid": return "#FF9800"; // Orange
+          case "unknown": return "#607D8B";  // Blue Grey
+          default: return "#757575";         // Grey (not_exported)
+        }
+      })(),
+      xero_paid_status_font: ["paid", "free", "unknown", "not_exported"].includes(xero_paid_status) ? "#FFFFFF" : "#000000",
+      // Total comparison styling
+      total_background: exportedToXero && parseFloat(maropostData.Order[0].GrandTotal) !== parseFloat(xeroData.invoices[0].amountDue || 0)
+        ? "#F44336" // Red for mismatch
+        : "#4CAF50", // Green for match
+      total_font: "#FFFFFF", // White for all cases
       debug: {
         notes: exportedToXero
-          ? (parseFloat(maropostData.Order[0].GrandTotal) === parseFloat(xeroData.invoices[0].amountDue)
+          ? (parseFloat(maropostData.Order[0].GrandTotal) === parseFloat(xeroData.invoices[0].amountDue || 0)
               ? "Amounts match."
               : "Amounts mismatch detected."
             )
