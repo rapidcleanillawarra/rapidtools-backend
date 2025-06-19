@@ -100,35 +100,35 @@ const handler = async (event) => {
     // Calculate styling values
     const maropost_paid_status_background = (() => {
       switch (maropost_paid_status) {
-        case "paid": return "#4CAF50";      // Green
-        case "free": return "#9C27B0";     // Purple
-        case "partial": return "#FFC107";  // Amber
-        case "overpaid": return "#FF9800"; // Orange
-        case "unpaid": return "#F44336";   // Red
-        default: return "#607D8B";         // Blue Grey
+        case "paid": return "rgb(76, 175, 80)";      // Green
+        case "free": return "rgb(156, 39, 176)";     // Purple
+        case "partial": return "rgb(255, 193, 7)";   // Amber
+        case "overpaid": return "rgb(255, 152, 0)";  // Orange
+        case "unpaid": return "rgb(244, 67, 54)";    // Red
+        default: return "rgb(96, 125, 139)";         // Blue Grey
       }
     })();
     
-    const maropost_paid_status_font = ["paid", "free", "unpaid"].includes(maropost_paid_status) ? "#FFFFFF" : "#000000";
+    const maropost_paid_status_font = ["paid", "free", "unpaid"].includes(maropost_paid_status) ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
     
     const xero_paid_status_background = (() => {
       switch (xero_paid_status) {
-        case "paid": return "#4CAF50";      // Green
-        case "free": return "#9C27B0";     // Purple
-        case "partial": return "#FFC107";  // Amber
-        case "overpaid": return "#FF9800"; // Orange
-        case "unknown": return "#607D8B";  // Blue Grey
-        default: return "#757575";         // Grey (not_exported)
+        case "paid": return "rgb(76, 175, 80)";      // Green
+        case "free": return "rgb(156, 39, 176)";     // Purple
+        case "partial": return "rgb(255, 193, 7)";   // Amber
+        case "overpaid": return "rgb(255, 152, 0)";  // Orange
+        case "unknown": return "rgb(96, 125, 139)";  // Blue Grey
+        default: return "rgb(117, 117, 117)";        // Grey (not_exported)
       }
     })();
     
-    const xero_paid_status_font = ["paid", "free", "unknown", "not_exported"].includes(xero_paid_status) ? "#FFFFFF" : "#000000";
+    const xero_paid_status_font = ["paid", "free", "unknown", "not_exported"].includes(xero_paid_status) ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
     
     const total_background = exportedToXero && (maropostGrandTotal - maropostPaymentsSum) !== parseFloat(xeroData.invoices[0].amountDue || 0)
-      ? "#F44336" // Red for mismatch
-      : "#4CAF50"; // Green for match
+      ? "rgb(244, 67, 54)" // Red for mismatch
+      : "rgb(76, 175, 80)"; // Green for match
     
-    const total_font = "#FFFFFF";
+    const total_font = "rgb(255, 255, 255)";
     
     const maropost_total = (maropostGrandTotal - maropostPaymentsSum).toFixed(2);
     const xero_total = exportedToXero ? xeroData.invoices[0].amountDue.toString() : "Not Yet Exported";
@@ -164,23 +164,23 @@ const handler = async (event) => {
   <b><strong>${message}</strong></b><br />
   <b><strong style="color: rgb(102, 102, 102);">Timestamp (UTC): ${timestamp_utc}</strong></b><br />
   <b><strong style="color: rgb(85, 85, 85);">Maropost Total:</strong></b>
-  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
     ${maropost_total}
   </strong></b><br />
   <b><strong style="color: rgb(85, 85, 85);">Maropost Paid Status:</strong></b>
-  <b><strong style="background: ${maropost_paid_status_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${maropost_paid_status_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="background: ${maropost_paid_status_background}; color: ${maropost_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
     ${maropost_paid_status}
   </strong></b><br />
   <b><strong style="color: rgb(85, 85, 85);">Xero Total:</strong></b>
-  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
     ${xero_total}
   </strong></b><br />
   <b><strong style="color: rgb(85, 85, 85);">Difference:</strong></b>
-  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
     ${difference}
   </strong></b><br />
   <b><strong style="color: rgb(85, 85, 85);">Xero Paid Status:</strong></b>
-  <b><strong style="background: ${xero_paid_status_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${xero_paid_status_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="background: ${xero_paid_status_background}; color: ${xero_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
     ${xero_paid_status}
   </strong></b><br />
   <b><strong>Notes:</strong></b> ${debug_notes}
