@@ -175,10 +175,13 @@ const handler = async (event) => {
 </p>
 <p class="editor-paragraph">
 <span style="color: rgb(85, 85, 85);">Maropost Total:</span><b><strong class="editor-text-bold" style="color: rgb(85, 85, 85);"> </strong></b><b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${maropost_total}</strong></b>
+
 <span style="color: rgb(85, 85, 85);">Xero Total:</span> <b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${xero_total}</strong></b>
+
 <span style="color: rgb(85, 85, 85);">Difference</span>: <b><strong class="editor-text-bold" style="background-color: ${total_background}; color: ${total_font};">$${difference}</strong></b>
 
 <span style="color: rgb(85, 85, 85);">Maropost Paid Status: </span><b><strong class="editor-text-bold" style="background-color: ${maropost_paid_status_background}; color: ${maropost_paid_status_font};">${maropost_paid_status}</strong></b>
+
 <span style="color: rgb(85, 85, 85);">Xero Paid Status:</span><b><strong class="editor-text-bold" style="color: rgb(85, 85, 85);"> </strong></b><b><strong class="editor-text-bold" style="background-color: ${xero_paid_status_background}; color: ${xero_paid_status_font};">${xero_paid_status}</strong></b>
 
 Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
