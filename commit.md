@@ -1,44 +1,35 @@
-# fix(accounting-bot): Correct RGB color implementation
+feat(accounting-bot): Enhance invoice validation and HTML template styling
 
-This commit fixes the incorrect RGB color conversion and ensures all color values are properly defined in RGB format.
+This commit introduces improvements to the invoice validation logic between Maropost and Xero, along with refined HTML template styling for better readability and user experience.
 
-## Files Modified:
+### Files Modified:
 
-### 1. `netlify/functions/accounting_bot.js`
-- **Fixed**: Replaced all hex color definitions with direct RGB values
-- **Removed**: Broken regex-based hex-to-RGB conversion in template
-- **Why**: Original implementation incorrectly converted colors and left some hex values
-- **Impact**: Maintains identical visual output while using proper RGB syntax
-- **Diff**:
-  ```diff
-  - case "paid": return "#4CAF50";
-  + case "paid": return "rgb(76, 175, 80)";
-  
-  - const maropost_paid_status_font = ["paid", "free", "unpaid"].includes(maropost_paid_status) ? "#FFFFFF" : "#000000";
-  + const maropost_paid_status_font = ["paid", "free", "unpaid"].includes(maropost_paid_status) ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
-  
-  - <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')};
-  + <b><strong style="background: ${total_background};
-  ```
+#### 1. `netlify/functions/accounting_bot.js`
+   - ADDED: HTTP method validation (POST only)
+   - ADDED: Input validation for required data fields (maropostData, xeroData)
+   - ADDED: OrderID matching logic
+   - ADDED: Invoice existence checks in Xero
+   - ADDED: Payment status tracking (paid/free/partial/overpaid)
+   - IMPROVED: HTML template styling (HEX to RGB, spacing, status formatting)
+   - DIFF:
+     ```diff
+     - const maropost_paid_status_background = "#4CAF50";
+     + const maropost_paid_status_background = "rgb(76, 175, 80)";
+     ```
 
-## Technical Improvements:
-- **Before**: Mixed hex/RGB with broken conversion logic
-- **After**: Consistent RGB usage with proper color definitions
-- **Performance**: Eliminates unnecessary string conversions
-- **Maintainability**: Clearer color definitions in code
+### Technical Improvements:
+- BEFORE: Basic validation and unstyled HTML output
+- AFTER: Robust validation and polished HTML template
+- IMPACT: Improved error handling and user-friendly output
 
-## Testing Instructions:
-1. Trigger the `/accounting_bot` endpoint with test data
-2. Verify all status colors render correctly (paid=green, unpaid=red, etc.)
-3. Inspect response HTML to confirm proper RGB values
-4. Test edge cases (missing data, mismatched totals)
+### Testing Instructions:
+1. Send a POST request to `/accounting_bot` with valid maropostData and xeroData.
+2. Verify the response includes correctly formatted HTML and status indicators.
+3. Test edge cases (missing data, OrderID mismatch, etc.).
 
-## Notes:
-- **No breaking changes**: Visual output remains identical
-- **Error handling**: Unaffected by these changes
-- **Deployment**: No special requirements
-
-## Additional Context:
-- **Related Issues**: N/A
-- **Dependencies**: None
-- **Deployment Requirements**: None 
+### Notes:
+- No breaking changes introduced.
+- Error handling now includes detailed debug information.
+- Related issues: None
+- Dependencies: None
+- Deployment requirements: None 
