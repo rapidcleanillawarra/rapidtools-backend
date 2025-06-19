@@ -104,12 +104,13 @@ const handler = async (event) => {
       maropost_paid_status,
       xero_total: exportedToXero ? xeroData.invoices[0].amountDue.toString() : "Not Yet Exported",
       difference: exportedToXero 
-        ? (parseFloat(maropostData.Order[0].GrandTotal) === parseFloat(xeroData.invoices[0].amountDue) 
-            ? "0" 
-            : Math.abs(
-                parseFloat(maropostData.Order[0].GrandTotal) - parseFloat(xeroData.invoices[0].amountDue)
-              ).toFixed(2)
-          )
+        ? (() => {
+            const maropostRemaining = maropostGrandTotal - maropostPaymentsSum;
+            const xeroAmountDue = parseFloat(xeroData.invoices[0].amountDue || 0);
+            return maropostRemaining === xeroAmountDue 
+              ? "0" 
+              : Math.abs(maropostRemaining - xeroAmountDue).toFixed(2);
+          })()
         : "Not Available",
       xero_paid_status,
       // Flattened style nodes
@@ -125,13 +126,13 @@ const handler = async (event) => {
       })(),
       xero_paid_status_font: ["paid", "free", "unknown", "not_exported"].includes(xero_paid_status) ? "#FFFFFF" : "#000000",
       // Total comparison styling
-      total_background: exportedToXero && parseFloat(maropostData.Order[0].GrandTotal) !== parseFloat(xeroData.invoices[0].amountDue || 0)
+      total_background: exportedToXero && (maropostGrandTotal - maropostPaymentsSum) !== parseFloat(xeroData.invoices[0].amountDue || 0)
         ? "#F44336" // Red for mismatch
         : "#4CAF50", // Green for match
       total_font: "#FFFFFF", // White for all cases
       debug: {
         notes: exportedToXero
-          ? (parseFloat(maropostData.Order[0].GrandTotal) === parseFloat(xeroData.invoices[0].amountDue || 0)
+          ? ((maropostGrandTotal - maropostPaymentsSum) === parseFloat(xeroData.invoices[0].amountDue || 0)
               ? "Amounts match."
               : "Amounts mismatch detected."
             )
