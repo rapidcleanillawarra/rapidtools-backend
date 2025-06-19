@@ -160,27 +160,27 @@ const handler = async (event) => {
       xero_total,
       difference,
       xero_paid_status,
-      html_template: `<p style="font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+      html_template: `<p style="font-family: Arial, sans-serif; background: rgb(244, 244, 244); padding: 20px; color: rgb(51, 51, 51); max-width: 600px; margin: auto; border: 1px solid rgb(221, 221, 221); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
   <b><strong>${message}</strong></b><br />
-  <b><strong style="color: #666;">Timestamp (UTC): ${timestamp_utc}</strong></b><br />
-  <b><strong style="color: #555;">Maropost Total:</strong></b>
-  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="color: rgb(102, 102, 102);">Timestamp (UTC): ${timestamp_utc}</strong></b><br />
+  <b><strong style="color: rgb(85, 85, 85);">Maropost Total:</strong></b>
+  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
     ${maropost_total}
   </strong></b><br />
-  <b><strong style="color: #555;">Maropost Paid Status:</strong></b>
-  <b><strong style="background: ${maropost_paid_status_background}; color: ${maropost_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="color: rgb(85, 85, 85);">Maropost Paid Status:</strong></b>
+  <b><strong style="background: ${maropost_paid_status_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${maropost_paid_status_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
     ${maropost_paid_status}
   </strong></b><br />
-  <b><strong style="color: #555;">Xero Total:</strong></b>
-  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="color: rgb(85, 85, 85);">Xero Total:</strong></b>
+  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
     ${xero_total}
   </strong></b><br />
-  <b><strong style="color: #555;">Difference:</strong></b>
-  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="color: rgb(85, 85, 85);">Difference:</strong></b>
+  <b><strong style="background: ${total_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${total_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
     ${difference}
   </strong></b><br />
-  <b><strong style="color: #555;">Xero Paid Status:</strong></b>
-  <b><strong style="background: ${xero_paid_status_background}; color: ${xero_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
+  <b><strong style="color: rgb(85, 85, 85);">Xero Paid Status:</strong></b>
+  <b><strong style="background: ${xero_paid_status_background.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; color: ${xero_paid_status_font.replace('#', 'rgb(').replace(/(..)(..)(..)/, '$1, $2, $3)')}; padding: 2px 4px; border-radius: 2px;">
     ${xero_paid_status}
   </strong></b><br />
   <b><strong>Notes:</strong></b> ${debug_notes}
