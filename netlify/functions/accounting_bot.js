@@ -89,6 +89,8 @@ const handler = async (event) => {
             return "paid";
           } else if (amountPaid === 0 && amountDue === 0 && total === 0) {
             return "free";
+          } else if (amountPaid === 0 && amountDue > 0) {
+            return "unpaid";
           } else if (total !== amountPaid) {
             return amountDue > 0 ? "partial" : "overpaid";
           } else {
@@ -189,7 +191,34 @@ Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
       debug: {
         notes: debug_notes,
       },
+      maropost_paid_status_background,
+      maropost_paid_status_font,
+      xero_paid_status_background,
+      xero_paid_status_font,
+      total_background,
+      total_font
     };
+
+    // Save to Firestore (simplified data)
+    try {
+      const { db } = require('./utils/firebaseInit');
+
+      await db.collection('accounting_bot').add({
+        order_id: maropostOrderId,
+        timestamp_utc,
+        maropost_total,
+        maropost_paid_status,
+        xero_total,
+        difference,
+        xero_paid_status,
+        notes: debug_notes
+      });
+
+      console.log('Data successfully saved to Firestore');
+    } catch (firestoreError) {
+      console.error('Failed to save to Firestore:', firestoreError);
+      // Don't throw the error - continue with the response
+    }
 
     // Log the received data
     console.log('Received Maropost Data:', maropostData);
