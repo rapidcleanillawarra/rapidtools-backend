@@ -149,9 +149,12 @@ const handler = async (event) => {
         )
       : "Invoice not found in Xero.";
 
+    const message = 'Data received successfully';
+    const timestamp_utc = new Date().toISOString();
+
     const responseData = {
-      message: 'Data received successfully',
-      timestamp_utc: new Date().toISOString(),
+      message,
+      timestamp_utc,
       maropost_total,
       maropost_paid_status,
       xero_total,
@@ -167,11 +170,11 @@ const handler = async (event) => {
   <tbody>
     <tr style="background: #fff;">
       <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Message</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${responseData.message}</td>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${message}</td>
     </tr>
     <tr style="background: #f9f9f9;">
       <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Timestamp (UTC)</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${responseData.timestamp_utc}</td>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${timestamp_utc}</td>
     </tr>
     <tr style="background: #fff;">
       <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Maropost Total</td>
