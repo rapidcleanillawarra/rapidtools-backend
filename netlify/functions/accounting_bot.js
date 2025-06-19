@@ -1,9 +1,26 @@
 const handler = async (event) => {
+  // Add CORS headers for production
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+
   // Debug Response 1: Method Not Allowed (405)
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         message: 'Method Not Allowed',
         debug: {
@@ -16,13 +33,27 @@ const handler = async (event) => {
   }
 
   try {
+    // Validate request body exists
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          message: 'Request body is required',
+          debug: {
+            suggestion: 'Ensure the request includes a valid JSON body.',
+          },
+        }),
+      };
+    }
+
     const { maropostData, xeroData } = JSON.parse(event.body);
 
     // Debug Response 2: Missing Required Data (400)
     if (!maropostData || !xeroData) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: 'Missing required data',
           debug: {
@@ -36,14 +67,59 @@ const handler = async (event) => {
       };
     }
 
+    // Validate maropostData structure
+    if (!maropostData.Order || !Array.isArray(maropostData.Order) || maropostData.Order.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          message: 'Invalid maropostData structure',
+          debug: {
+            issue: 'maropostData.Order must be a non-empty array',
+            suggestion: 'Verify the maropostData contains a valid Order array.',
+          },
+        }),
+      };
+    }
+
+    // Validate xeroData structure
+    if (!xeroData.requestedItems || !Array.isArray(xeroData.requestedItems) || xeroData.requestedItems.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          message: 'Invalid xeroData structure',
+          debug: {
+            issue: 'xeroData.requestedItems must be a non-empty array',
+            suggestion: 'Verify the xeroData contains a valid requestedItems array.',
+          },
+        }),
+      };
+    }
+
+    // Safe access to order data
+    const order = maropostData.Order[0];
+    if (!order.OrderID) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          message: 'Missing OrderID in maropostData',
+          debug: {
+            suggestion: 'Ensure the Order contains a valid OrderID field.',
+          },
+        }),
+      };
+    }
+
     // Debug Response 3: OrderID Mismatch (400)
-    const maropostOrderId = maropostData.Order[0].OrderID;
+    const maropostOrderId = order.OrderID;
     const xeroRequestedItem = xeroData.requestedItems[0];
 
     if (maropostOrderId !== xeroRequestedItem) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: 'OrderID mismatch between maropostData and xeroData',
           debug: {
@@ -56,13 +132,13 @@ const handler = async (event) => {
     }
 
     // 4. Invoice Existence in Xero
-    const exportedToXero = xeroData.foundCount > 0 && xeroData.invoices.length > 0;
+    const exportedToXero = xeroData.foundCount > 0 && xeroData.invoices && Array.isArray(xeroData.invoices) && xeroData.invoices.length > 0;
 
-    // 5. Prepare Response Data
-    const maropostPaymentsSum = maropostData.Order[0].OrderPayment 
-      ? maropostData.Order[0].OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+    // 5. Prepare Response Data with safe access
+    const maropostPaymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+      ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
       : 0;
-    const maropostGrandTotal = parseFloat(maropostData.Order[0].GrandTotal || 0);
+    const maropostGrandTotal = parseFloat(order.GrandTotal || 0);
 
     let maropost_paid_status;
     if (maropostGrandTotal === 0) {
@@ -77,7 +153,7 @@ const handler = async (event) => {
       maropost_paid_status = "unpaid";
     }
 
-    // Calculate xero_paid_status first
+    // Calculate xero_paid_status with safe access
     const xero_paid_status = exportedToXero
       ? (() => {
           const invoice = xeroData.invoices[0];
@@ -203,8 +279,10 @@ Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
     try {
       const { db } = require('./utils/firebaseInit');
 
-      await db.collection('accounting_bot').add({
+      // Prepare Firestore document with safe data access
+      const firestoreDoc = {
         order_id: maropostOrderId,
+        order_status: order.OrderStatus || 'unknown', // Fallback if OrderStatus is missing
         timestamp_utc,
         maropost_total,
         maropost_paid_status,
@@ -212,11 +290,17 @@ Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
         difference,
         xero_paid_status,
         notes: debug_notes
-      });
+      };
 
-      console.log('Data successfully saved to Firestore');
+      await db.collection('accounting_bot').add(firestoreDoc);
+
+      console.log('Data successfully saved to Firestore:', { order_id: maropostOrderId });
     } catch (firestoreError) {
-      console.error('Failed to save to Firestore:', firestoreError);
+      console.error('Failed to save to Firestore:', {
+        error: firestoreError.message,
+        order_id: maropostOrderId,
+        stack: firestoreError.stack
+      });
       // Don't throw the error - continue with the response
     }
 
@@ -227,7 +311,7 @@ Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
     // 6. Success Response
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(responseData),
     };
   } catch (error) {
@@ -235,7 +319,7 @@ Notes: <b><strong class="editor-text-bold">${debug_notes}</strong></b>
     console.error('Error processing data:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         message: 'Internal Server Error',
         error: error.message,

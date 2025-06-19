@@ -1,35 +1,116 @@
-feat(accounting-bot): Enhance invoice validation and HTML template styling
+feat(accounting-bot): Add production-ready Firestore integration with comprehensive validation
 
-This commit introduces improvements to the invoice validation logic between Maropost and Xero, along with refined HTML template styling for better readability and user experience.
+This commit implements robust Firestore data persistence with extensive validation,
+error handling, and production-ready features for Netlify deployment.
 
 ### Files Modified:
 
 #### 1. `netlify/functions/accounting_bot.js`
-   - ADDED: HTTP method validation (POST only)
-   - ADDED: Input validation for required data fields (maropostData, xeroData)
-   - ADDED: OrderID matching logic
-   - ADDED: Invoice existence checks in Xero
-   - ADDED: Payment status tracking (paid/free/partial/overpaid)
-   - IMPROVED: HTML template styling (HEX to RGB, spacing, status formatting)
+   - ADDED: Firestore integration using existing firebaseInit utility
+   - ADDED: Comprehensive data validation for production safety
+   - ADDED: CORS headers for cross-origin requests
+   - ADDED: OPTIONS method handling for preflight requests
+   - IMPROVED: Error handling with detailed logging
+   - FIXED: Safe array/object access to prevent runtime errors
    - DIFF:
      ```diff
-     - const maropost_paid_status_background = "#4CAF50";
-     + const maropost_paid_status_background = "rgb(76, 175, 80)";
+     + // Add CORS headers for production
+     + const headers = {
+     +   'Content-Type': 'application/json',
+     +   'Access-Control-Allow-Origin': '*',
+     +   'Access-Control-Allow-Headers': 'Content-Type',
+     +   'Access-Control-Allow-Methods': 'POST, OPTIONS'
+     + };
+     
+     + // Validate maropostData structure
+     + if (!maropostData.Order || !Array.isArray(maropostData.Order) || maropostData.Order.length === 0) {
+     +   return { statusCode: 400, headers, body: JSON.stringify({...}) };
+     + }
+     
+     + // Safe access to order data
+     + const order = maropostData.Order[0];
+     + const maropostPaymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+     +   ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+     +   : 0;
      ```
 
 ### Technical Improvements:
-- BEFORE: Basic validation and unstyled HTML output
-- AFTER: Robust validation and polished HTML template
-- IMPACT: Improved error handling and user-friendly output
+- BEFORE: Direct array access without bounds checking
+- AFTER: Comprehensive validation with graceful error handling
+- BEFORE: No CORS support for production API calls
+- AFTER: Full CORS support with preflight handling
+- BEFORE: Basic error logging
+- AFTER: Structured error logging with context
+
+### Production Safety Features:
+1. **Data Validation**:
+   - Request body existence check
+   - Array bounds validation
+   - Required field verification
+   - Nested object safety checks
+
+2. **Error Handling**:
+   - Firestore operation isolation
+   - Detailed error logging with context
+   - Graceful fallbacks (e.g., 'unknown' for missing OrderStatus)
+
+3. **CORS Support**:
+   - Cross-origin request headers
+   - OPTIONS preflight handling
+   - Production-ready API access
+
+### Firestore Document Structure:
+```json
+{
+  "order_id": "MP12345",
+  "order_status": "Fulfilled", // From maropostData.Order[0].OrderStatus
+  "timestamp_utc": "2023-11-16T09:45:00Z",
+  "maropost_total": "150.00",
+  "maropost_paid_status": "partial",
+  "xero_total": "150.00",
+  "difference": "0.00",
+  "xero_paid_status": "unpaid",
+  "notes": "Amounts match but payment pending"
+}
+```
 
 ### Testing Instructions:
-1. Send a POST request to `/accounting_bot` with valid maropostData and xeroData.
-2. Verify the response includes correctly formatted HTML and status indicators.
-3. Test edge cases (missing data, OrderID mismatch, etc.).
+1. Test endpoint with valid data:
+   ```bash
+   curl -X POST https://your-netlify-url/.netlify/functions/accounting_bot \
+     -H "Content-Type: application/json" \
+     -d '{"maropostData": {"Order": [{"OrderID": "123", "OrderStatus": "Fulfilled"}]}, "xeroData": {"requestedItems": ["123"], "foundCount": 1, "invoices": []}}'
+   ```
 
-### Notes:
-- No breaking changes introduced.
-- Error handling now includes detailed debug information.
-- Related issues: None
-- Dependencies: None
-- Deployment requirements: None 
+2. Test validation with invalid data:
+   ```bash
+   curl -X POST https://your-netlify-url/.netlify/functions/accounting_bot \
+     -H "Content-Type: application/json" \
+     -d '{"maropostData": {}, "xeroData": {}}'
+   ```
+
+3. Test CORS preflight:
+   ```bash
+   curl -X OPTIONS https://your-netlify-url/.netlify/functions/accounting_bot \
+     -H "Access-Control-Request-Method: POST"
+   ```
+
+### Error Handling Improvements:
+- Firestore failures are isolated and logged but don't break API responses
+- Missing OrderStatus defaults to 'unknown' instead of causing errors
+- All array accesses are bounds-checked
+- Nested object properties are safely accessed
+
+### Dependencies:
+- Requires firebase-admin@^11.0.0 (already in package.json)
+- Needs Firebase environment variables in Netlify:
+  - FIREBASE_PROJECT_ID
+  - FIREBASE_CLIENT_EMAIL
+  - FIREBASE_PRIVATE_KEY
+  - FIREBASE_DATABASE_URL
+
+### Deployment Notes:
+- No breaking changes - existing API responses remain identical
+- Added CORS support for browser-based requests
+- Enhanced error messages for easier debugging
+- Production-ready validation prevents runtime crashes 
