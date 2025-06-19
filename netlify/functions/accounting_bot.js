@@ -100,7 +100,7 @@ const handler = async (event) => {
     const responseData = {
       message: 'Data received successfully',
       timestamp_utc: new Date().toISOString(),
-      maropost_total: maropostData.Order[0].GrandTotal,
+      maropost_total: (maropostGrandTotal - maropostPaymentsSum).toFixed(2),
       maropost_paid_status,
       xero_total: exportedToXero ? xeroData.invoices[0].amountDue.toString() : "Not Yet Exported",
       difference: exportedToXero 
