@@ -102,6 +102,17 @@ const handler = async (event) => {
       timestamp_utc: new Date().toISOString(),
       maropost_total: (maropostGrandTotal - maropostPaymentsSum).toFixed(2),
       maropost_paid_status,
+      maropost_paid_status_background: (() => {
+        switch (maropost_paid_status) {
+          case "paid": return "#4CAF50";      // Green
+          case "free": return "#9C27B0";     // Purple
+          case "partial": return "#FFC107";  // Amber
+          case "overpaid": return "#FF9800"; // Orange
+          case "unpaid": return "#F44336";   // Red
+          default: return "#607D8B";         // Blue Grey
+        }
+      })(),
+      maropost_paid_status_font: ["paid", "free", "unpaid"].includes(maropost_paid_status) ? "#FFFFFF" : "#000000",
       xero_total: exportedToXero ? xeroData.invoices[0].amountDue.toString() : "Not Yet Exported",
       difference: exportedToXero 
         ? (() => {
