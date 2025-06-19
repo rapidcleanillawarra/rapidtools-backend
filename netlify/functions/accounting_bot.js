@@ -160,69 +160,31 @@ const handler = async (event) => {
       xero_total,
       difference,
       xero_paid_status,
-      html_template: `<table style="border-collapse: separate; border-spacing: 0; width: 100%; max-width: 600px; margin: auto; font-family: Arial, sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden;">
-  <thead>
-    <tr>
-      <th style="padding: 12px 16px; background: #f5f5f5; border-bottom: 2px solid #ddd; text-align: left; color: #333;">Field</th>
-      <th style="padding: 12px 16px; background: #f5f5f5; border-bottom: 2px solid #ddd; text-align: left; color: #333;">Value</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr style="background: #fff;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Message</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${message}</td>
-    </tr>
-    <tr style="background: #f9f9f9;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Timestamp (UTC)</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">${timestamp_utc}</td>
-    </tr>
-    <tr style="background: #fff;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Maropost Total</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">
-        <span style="background: ${total_background}; color: ${total_font}; padding: 4px 8px; border-radius: 4px;">
-          ${maropost_total}
-        </span>
-      </td>
-    </tr>
-    <tr style="background: #f9f9f9;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Maropost Paid Status</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">
-        <span style="background: ${maropost_paid_status_background}; color: ${maropost_paid_status_font}; padding: 4px 8px; border-radius: 12px;">
-          ${maropost_paid_status}
-        </span>
-      </td>
-    </tr>
-    <tr style="background: #fff;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Xero Total</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">
-        <span style="background: ${total_background}; color: ${total_font}; padding: 4px 8px; border-radius: 4px;">
-          ${xero_total}
-        </span>
-      </td>
-    </tr>
-    <tr style="background: #f9f9f9;">
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">Difference</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #eee;">
-        <span style="background: ${total_background}; color: ${total_font}; padding: 4px 8px; border-radius: 4px;">
-          ${difference}
-        </span>
-      </td>
-    </tr>
-    <tr style="background: #fff;">
-      <td style="padding: 12px 16px;">Xero Paid Status</td>
-      <td style="padding: 12px 16px;">
-        <span style="background: ${xero_paid_status_background}; color: ${xero_paid_status_font}; padding: 4px 8px; border-radius: 12px;">
-          ${xero_paid_status}
-        </span>
-      </td>
-    </tr>
-    <tr style="background: #f9f9f9;">
-      <td colspan="2" style="padding: 12px 16px; font-style: italic; color: #555; border-top: 1px solid #eee;">
-        Notes: ${debug_notes}
-      </td>
-    </tr>
-  </tbody>
-</table>`,
+      html_template: `<p style="font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+  <b><strong>${message}</strong></b><br />
+  <b><strong style="color: #666;">Timestamp (UTC): ${timestamp_utc}</strong></b><br />
+  <b><strong style="color: #555;">Maropost Total:</strong></b>
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+    ${maropost_total}
+  </strong></b><br />
+  <b><strong style="color: #555;">Maropost Paid Status:</strong></b>
+  <b><strong style="background: ${maropost_paid_status_background}; color: ${maropost_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
+    ${maropost_paid_status}
+  </strong></b><br />
+  <b><strong style="color: #555;">Xero Total:</strong></b>
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+    ${xero_total}
+  </strong></b><br />
+  <b><strong style="color: #555;">Difference:</strong></b>
+  <b><strong style="background: ${total_background}; color: ${total_font}; padding: 2px 4px; border-radius: 2px;">
+    ${difference}
+  </strong></b><br />
+  <b><strong style="color: #555;">Xero Paid Status:</strong></b>
+  <b><strong style="background: ${xero_paid_status_background}; color: ${xero_paid_status_font}; padding: 2px 4px; border-radius: 2px;">
+    ${xero_paid_status}
+  </strong></b><br />
+  <b><strong>Notes:</strong></b> ${debug_notes}
+</p>`,
       debug: {
         notes: debug_notes,
       },
