@@ -3,11 +3,17 @@
   "version": "1.0.0",
   "description": "Netlify functions for Xero API integration",
   "scripts": {
+    "dev": "netlify dev",
+    "build": "echo Building functions",
     "deploy": "echo Deploying functions"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
     "firebase-admin": "^11.0.0",
     "xero-node": "^5.0.0",
     "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
   }
 } 
