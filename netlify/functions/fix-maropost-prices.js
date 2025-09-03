@@ -205,6 +205,105 @@ exports.handler = async function(event, context) {
     const step4 = step3.filter(item => item.discounted_supply_price);
     console.log(`Step 4 - Has discounted supply price: ${step4.length}`);
 
+    // Check if any items require manual update due to missing Misc02/Misc09
+    const manualUpdateRequired = step4.some(item => {
+      const azureData = item.azureData;
+      if (!azureData) return false;
+
+      const misc02Val = azureData.Misc02 ? parseFloat(azureData.Misc02) : null;
+      const misc09Val = azureData.Misc09 ? parseFloat(azureData.Misc09) : null;
+
+      // Both are null or zero (unavailable)
+      const misc02Unavailable = misc02Val === null || misc02Val === 0;
+      const misc09Unavailable = misc09Val === null || misc09Val === 0;
+
+      return misc02Unavailable && misc09Unavailable;
+    });
+
+    if (manualUpdateRequired) {
+      console.log('Manual update required - both Misc02 and Misc09 are unavailable for some items');
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET,POST',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          success: false,
+          message: 'Manual update required - Misc02 and Misc09 data is unavailable or zero for some items',
+          requiresManualUpdate: true,
+          total: mismatches.length,
+          itemsRequiringManualUpdate: step4.length,
+          data: step4.map(item => ({
+            sku: item.sku,
+            issue: 'Both Misc02 and Misc09 are unavailable or zero'
+          }))
+        }, null, 2)
+      };
+    }
+
+    // Analyze all price groups to find majority price and identify groups to delete
+    const allPriceGroups = [];
+    const priceFrequency = new Map();
+    const groupPriceMap = new Map(); // Track which groups have which prices
+
+    step4.forEach(item => {
+      const azureData = item.azureData;
+      if (azureData && azureData.PriceGroups && azureData.PriceGroups[0] && azureData.PriceGroups[0].PriceGroup) {
+        const priceGroups = azureData.PriceGroups[0].PriceGroup;
+
+        priceGroups.forEach(group => {
+          const groupId = group.GroupID;
+          const price = parseFloat(group.Price);
+
+          if (!isNaN(price)) {
+            // Count price frequency
+            const currentCount = priceFrequency.get(price) || 0;
+            priceFrequency.set(price, currentCount + 1);
+
+            // Track group-price relationships
+            if (!groupPriceMap.has(groupId)) {
+              groupPriceMap.set(groupId, new Set());
+            }
+            groupPriceMap.get(groupId).add(price);
+
+            // Collect unique group IDs
+            if (!allPriceGroups.includes(groupId)) {
+              allPriceGroups.push(groupId);
+            }
+          }
+        });
+      }
+    });
+
+    // Find majority price
+    let majorityPrice = null;
+    let maxCount = 0;
+    for (const [price, count] of priceFrequency) {
+      if (count > maxCount) {
+        maxCount = count;
+        majorityPrice = price;
+      }
+    }
+
+    // Identify groups with prices lower than majority (these should be preserved)
+    const groupsWithLowerPrices = new Set();
+    for (const [groupId, prices] of groupPriceMap) {
+      const hasLowerPrice = Array.from(prices).some(price => price < majorityPrice);
+      if (hasLowerPrice) {
+        groupsWithLowerPrices.add(groupId);
+      }
+    }
+
+    console.log('=== Price Group Analysis ===');
+    console.log(`All Group IDs found: ${allPriceGroups.join(', ')}`);
+    console.log(`Price frequency:`, Object.fromEntries(priceFrequency));
+    console.log(`Majority price: ${majorityPrice} (appears ${maxCount} times)`);
+    console.log(`Groups with lower prices (preserved): ${Array.from(groupsWithLowerPrices).join(', ') || 'None'}`);
+    console.log(`Groups that will be deleted: ${allPriceGroups.filter(id => id !== "1" && id !== "2" && !groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
+
     const updatePayload = {
       Item: step4
         .map((item, index) => {
@@ -218,24 +317,106 @@ exports.handler = async function(event, context) {
 
           const azureData = item.azureData;
 
+          // Calculate pricing based on misc values when both are available
+          const misc02Val = azureData && azureData.Misc02 ? parseFloat(azureData.Misc02) : null;
+          const misc09Val = azureData && azureData.Misc09 ? parseFloat(azureData.Misc09) : null;
+          const misc02Valid = misc02Val !== null && misc02Val !== 0;
+          const misc09Valid = misc09Val !== null && misc09Val !== 0;
+          const discountedPrice = item.discounted_supply_price ? parseFloat(item.discounted_supply_price) : null;
+
+          // Calculate new prices when both misc values are available
+          let calculatedRRP = null;
+          let calculatedListPrice = null;
+          let calculatedNewCustomerPrice = null;
+
+          if (misc02Valid && misc09Valid && discountedPrice) {
+            // Use the higher misc value for calculation
+            const higherMiscValue = Math.max(misc02Val, misc09Val);
+            calculatedRRP = discountedPrice * higherMiscValue;
+            calculatedListPrice = discountedPrice * higherMiscValue;
+            calculatedNewCustomerPrice = discountedPrice * higherMiscValue;
+
+            console.log(`=== Calculated prices for ${item.sku} ===`);
+            console.log(`Discounted Price: ${discountedPrice}`);
+            console.log(`Higher Misc Value: ${higherMiscValue}`);
+            console.log(`Calculated RRP: ${calculatedRRP}`);
+            console.log(`Calculated List Price: ${calculatedListPrice}`);
+            console.log(`Calculated New Customer Price: ${calculatedNewCustomerPrice}`);
+          }
+
           const mappedItem = {
             SKU: item.sku,
-            RRP: azureData && azureData.RRP ? parseFloat(azureData.RRP) : null,
-            DefaultPurchasePrice: item.discounted_supply_price ? parseFloat(item.discounted_supply_price) : null,
-            // Handle Misc02 and Misc09 with fallback logic
-            Misc02: azureData && azureData.Misc02 ? azureData.Misc02.toString() : (azureData && azureData.Misc09 ? azureData.Misc09.toString() : null), // client MUP
-            Misc09: azureData && azureData.Misc09 ? azureData.Misc09.toString() : (azureData && azureData.Misc02 ? azureData.Misc02.toString() : null), // retail MUP
+            RRP: calculatedRRP !== null ? calculatedRRP : (azureData && azureData.RRP ? parseFloat(azureData.RRP) : null),
+            DefaultPurchasePrice: discountedPrice,
+            // Handle Misc02 and Misc09 - use highest value when there's a mismatch
+            Misc02: (() => {
+              if (misc02Valid && misc09Valid) {
+                // Both valid - use the higher value
+                return Math.max(misc02Val, misc09Val).toString();
+              } else if (misc02Valid) {
+                // Only Misc02 is valid
+                return misc02Val.toString();
+              } else if (misc09Valid) {
+                // Only Misc09 is valid
+                return misc09Val.toString();
+              }
+
+              return null;
+            })(),
+            Misc09: (() => {
+              if (misc02Valid && misc09Valid) {
+                // Both valid - use the higher value
+                return Math.max(misc02Val, misc09Val).toString();
+              } else if (misc09Valid) {
+                // Only Misc09 is valid
+                return misc09Val.toString();
+              } else if (misc02Valid) {
+                // Only Misc02 is valid
+                return misc02Val.toString();
+              }
+
+              return null;
+            })(),
             PriceGroups: {
-              PriceGroup: [
-                {
-                  Group: "1", // list price
-                  Price: item.listPrice.price ? parseFloat(item.listPrice.price) : null
-                },
-                {
-                  Group: "2", // New Customers Price
-                  Price: item.newCustomersPrice.price ? parseFloat(item.newCustomersPrice.price) : null
+              PriceGroup: (() => {
+                const priceGroupArray = [
+                  {
+                    Group: "1", // list price
+                    Price: calculatedListPrice !== null ? calculatedListPrice : (item.listPrice.price ? parseFloat(item.listPrice.price) : null)
+                  },
+                  {
+                    Group: "2", // New Customers Price
+                    Price: calculatedNewCustomerPrice !== null ? calculatedNewCustomerPrice : (item.newCustomersPrice.price ? parseFloat(item.newCustomersPrice.price) : null)
+                  }
+                ];
+
+                // Add delete instructions for other group IDs (excluding those with lower prices)
+                const azureData = item.azureData;
+                if (azureData && azureData.PriceGroups && azureData.PriceGroups[0] && azureData.PriceGroups[0].PriceGroup) {
+                  const existingGroups = azureData.PriceGroups[0].PriceGroup.map(group => group.GroupID);
+
+                  const groupsToDelete = existingGroups.filter(groupId =>
+                    groupId !== "1" &&
+                    groupId !== "2" &&
+                    !groupsWithLowerPrices.has(groupId)
+                  );
+
+                  if (groupsToDelete.length > 0) {
+                    console.log(`=== Deleting groups for ${item.sku} ===`);
+                    console.log(`Groups to delete: ${groupsToDelete.join(', ')}`);
+                    console.log(`Preserved groups with lower prices: ${existingGroups.filter(id => groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
+                  }
+
+                  groupsToDelete.forEach(groupId => {
+                    priceGroupArray.push({
+                      Group: groupId,
+                      Delete: true
+                    });
+                  });
                 }
-              ]
+
+                return priceGroupArray;
+              })()
             }
           };
 
@@ -286,6 +467,12 @@ exports.handler = async function(event, context) {
 
     console.log(`Final update payload items: ${updatePayload.Item.length}`);
     console.log('Misc02/Misc09 statistics:', miscStats);
+    console.log('Price Group Analysis Summary:');
+    console.log(`- Total unique group IDs found: ${allPriceGroups.length}`);
+    console.log(`- Groups to keep: 1 (List), 2 (New Customers)`);
+    console.log(`- Groups preserved (have lower prices): ${Array.from(groupsWithLowerPrices).join(', ') || 'None'}`);
+    console.log(`- Groups to delete: ${allPriceGroups.filter(id => id !== "1" && id !== "2" && !groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
+    console.log(`- Majority price across all groups: ${majorityPrice || 'N/A'}`);
     console.log('Update payload ready:', updatePayload);
 
     // Debug information to understand why payload is empty
