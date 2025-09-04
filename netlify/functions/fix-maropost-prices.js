@@ -199,8 +199,8 @@ exports.handler = async function(event, context) {
     const step2 = step1.filter(item => item.listPrice);
     console.log(`Step 2 - Has list price: ${step2.length}`);
 
-    const step3 = step2.filter(item => item.newCustomersPrice);
-    console.log(`Step 3 - Has new customers price: ${step3.length}`);
+    const step3 = step2; // Remove newCustomersPrice requirement for now
+    console.log(`Step 3 - After list price filter: ${step3.length}`);
 
     const step4 = step3.filter(item => item.discounted_supply_price);
     console.log(`Step 4 - Has discounted supply price: ${step4.length}`);
@@ -288,8 +288,9 @@ exports.handler = async function(event, context) {
       }
     }
 
-    // Identify groups with prices lower than majority (these should be preserved)
+    // Identify groups with prices lower than majority (these will be standardized to calculated price)
     const groupsWithLowerPrices = new Set();
+
     for (const [groupId, prices] of groupPriceMap) {
       const hasLowerPrice = Array.from(prices).some(price => price < majorityPrice);
       if (hasLowerPrice) {
@@ -302,6 +303,13 @@ exports.handler = async function(event, context) {
     console.log(`Price frequency:`, Object.fromEntries(priceFrequency));
     console.log(`Majority price: ${majorityPrice} (appears ${maxCount} times)`);
     console.log(`Groups with lower prices (preserved): ${Array.from(groupsWithLowerPrices).join(', ') || 'None'}`);
+
+    // Log lower price groups that will be adjusted based on old purchase price difference
+    if (groupsWithLowerPrices.size > 0) {
+      console.log('=== Lower Price Groups to be Adjusted ===');
+      console.log(`Groups that will be adjusted based on old purchase price difference: ${Array.from(groupsWithLowerPrices).join(', ')}`);
+    }
+
     console.log(`Groups that will be deleted: ${allPriceGroups.filter(id => id !== "1" && id !== "2" && !groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
 
     const updatePayload = {
@@ -324,14 +332,22 @@ exports.handler = async function(event, context) {
           const misc09Valid = misc09Val !== null && misc09Val !== 0;
           const discountedPrice = item.discounted_supply_price ? parseFloat(item.discounted_supply_price) : null;
 
-          // Calculate new prices when both misc values are available
+          // Determine higher misc value for calculations (pick one if equal)
+          let higherMiscValue = null;
+          if (misc02Valid && misc09Valid) {
+            higherMiscValue = Math.max(misc02Val, misc09Val);
+          } else if (misc02Valid) {
+            higherMiscValue = misc02Val;
+          } else if (misc09Valid) {
+            higherMiscValue = misc09Val;
+          }
+
+          // Calculate new prices when misc values are available
           let calculatedRRP = null;
           let calculatedListPrice = null;
           let calculatedNewCustomerPrice = null;
 
-          if (misc02Valid && misc09Valid && discountedPrice) {
-            // Use the higher misc value for calculation
-            const higherMiscValue = Math.max(misc02Val, misc09Val);
+          if (higherMiscValue && discountedPrice) {
             calculatedRRP = discountedPrice * higherMiscValue;
             calculatedListPrice = discountedPrice * higherMiscValue;
             calculatedNewCustomerPrice = discountedPrice * higherMiscValue;
@@ -386,7 +402,7 @@ exports.handler = async function(event, context) {
                   },
                   {
                     Group: "2", // New Customers Price
-                    Price: calculatedNewCustomerPrice !== null ? calculatedNewCustomerPrice : (item.newCustomersPrice.price ? parseFloat(item.newCustomersPrice.price) : null)
+                    Price: calculatedNewCustomerPrice !== null ? calculatedNewCustomerPrice : (item.newCustomersPrice && item.newCustomersPrice.price ? parseFloat(item.newCustomersPrice.price) : null)
                   }
                 ];
 
@@ -401,10 +417,49 @@ exports.handler = async function(event, context) {
                     !groupsWithLowerPrices.has(groupId)
                   );
 
+                  // Handle groups with lower prices - calculate adjustment based on old purchase price difference
+                  const groupsToAdjust = existingGroups.filter(groupId =>
+                    groupsWithLowerPrices.has(groupId)
+                  );
+
+                  if (groupsToAdjust.length > 0) {
+                    console.log(`=== Adjusting lower price groups for ${item.sku} ===`);
+
+                    // Get the old purchase price from Azure data
+                    const oldPurchasePrice = azureData && azureData.DefaultPurchasePrice ?
+                                           parseFloat(azureData.DefaultPurchasePrice) : null;
+
+                    if (!oldPurchasePrice) {
+                      console.log(`No old purchase price found in Azure data, skipping adjustments`);
+                    } else {
+                      groupsToAdjust.forEach(groupId => {
+                        const existingGroup = azureData.PriceGroups[0].PriceGroup.find(g => g.GroupID === groupId);
+
+                        if (existingGroup) {
+                          const currentPrice = parseFloat(existingGroup.Price);
+
+                          // Calculate percentage difference from old purchase price
+                          const percentageDiff = ((currentPrice - oldPurchasePrice) / oldPurchasePrice);
+
+                          // Apply the percentage difference to get the adjusted price
+                          // Use: discounted_supply_price * (1 + percentage_difference)
+                          const targetPrice = discountedPrice * (1 + percentageDiff);
+
+                          console.log(`Group ${groupId}: $${currentPrice} -> $${targetPrice.toFixed(2)} (diff from old: ${(percentageDiff * 100).toFixed(2)}%)`);
+
+                          priceGroupArray.push({
+                            Group: groupId,
+                            Price: targetPrice
+                          });
+                        }
+                      });
+                    }
+                  }
+
                   if (groupsToDelete.length > 0) {
                     console.log(`=== Deleting groups for ${item.sku} ===`);
                     console.log(`Groups to delete: ${groupsToDelete.join(', ')}`);
-                    console.log(`Preserved groups with lower prices: ${existingGroups.filter(id => groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
+                    console.log(`Adjusted groups with lower prices: ${groupsToAdjust.join(', ') || 'None'}`);
                   }
 
                   groupsToDelete.forEach(groupId => {
@@ -443,7 +498,7 @@ exports.handler = async function(event, context) {
           console.log(`hasMiscData=${hasMiscData}, hasRRP=${hasRRP}, hasDiscountedPrice=${hasDiscountedPrice}`);
           console.log(`Combined result: ${hasRRP && hasDiscountedPrice && hasMiscData}`);
 
-          return hasRRP && hasDiscountedPrice && hasMiscData;
+          return hasDiscountedPrice && hasMiscData; // RRP is not strictly required for price updates
         }), // Only include complete items
       action: "UpdateItem"
     };
@@ -470,13 +525,83 @@ exports.handler = async function(event, context) {
     console.log('Price Group Analysis Summary:');
     console.log(`- Total unique group IDs found: ${allPriceGroups.length}`);
     console.log(`- Groups to keep: 1 (List), 2 (New Customers)`);
-    console.log(`- Groups preserved (have lower prices): ${Array.from(groupsWithLowerPrices).join(', ') || 'None'}`);
+    console.log(`- Groups adjusted (had lower prices): ${Array.from(groupsWithLowerPrices).join(', ') || 'None'}`);
     console.log(`- Groups to delete: ${allPriceGroups.filter(id => id !== "1" && id !== "2" && !groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
     console.log(`- Majority price across all groups: ${majorityPrice || 'N/A'}`);
+
+    if (groupsWithLowerPrices.size > 0) {
+      console.log('Price Adjustment Summary:');
+      console.log(`- ${groupsWithLowerPrices.size} groups will be adjusted based on old purchase price difference`);
+      console.log(`- Adjustment method: (current_price - old_purchase_price) / old_purchase_price`);
+      console.log(`- Groups adjusted: ${Array.from(groupsWithLowerPrices).join(', ')}`);
+    }
     console.log('Update payload ready:', updatePayload);
 
-    // Debug information to understand why payload is empty
-    const debugInfo = {
+    // Submit update payload to Azure Logic Apps
+    console.log('Submitting update payload to Azure Logic Apps...');
+
+    let azureUpdateResponse;
+    let azureUpdateSuccess = false;
+    let azureUpdateError = null;
+
+    try {
+      const azureUpdateFetchResponse = await fetch(azureUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatePayload)
+      });
+
+      if (!azureUpdateFetchResponse.ok) {
+        throw new Error(`Azure update returned ${azureUpdateFetchResponse.status}: ${azureUpdateFetchResponse.statusText}`);
+      }
+
+      azureUpdateResponse = await azureUpdateFetchResponse.json();
+      azureUpdateSuccess = true;
+      console.log('Azure Logic Apps update completed successfully');
+    } catch (updateError) {
+      console.error('Error submitting update to Azure Logic Apps:', updateError);
+      azureUpdateError = updateError.message;
+    }
+
+    // Update Supabase records if Azure update was successful
+    let supabaseUpdateResults = [];
+    if (azureUpdateSuccess && updatePayload.Item && updatePayload.Item.length > 0) {
+      console.log('Updating Supabase records as resolved...');
+
+      try {
+        for (const item of updatePayload.Item) {
+          const { error } = await supabase
+            .from('purchase_price_mismatches')
+            .update({
+              resolved: true
+            })
+            .eq('sku', item.SKU);
+
+          if (error) {
+            console.error(`Error updating Supabase record for SKU ${item.SKU}:`, error);
+            supabaseUpdateResults.push({
+              sku: item.SKU,
+              success: false,
+              error: error.message
+            });
+          } else {
+            console.log(`Successfully marked SKU ${item.SKU} as resolved in Supabase`);
+            supabaseUpdateResults.push({
+              sku: item.SKU,
+              success: true
+            });
+          }
+        }
+      } catch (supabaseError) {
+        console.error('Error updating Supabase records:', supabaseError);
+      }
+    }
+
+    // Prepare final response
+    const finalResponse = {
+      success: azureUpdateSuccess,
       totalSupabaseItems: mismatches.length,
       totalCombinedResults: combinedResults.length,
       step1FoundInAzure: step1.length,
@@ -486,18 +611,26 @@ exports.handler = async function(event, context) {
       finalPayloadItems: updatePayload.Item.length,
       sampleCombinedResult: combinedResults[0] || null,
       miscStats: miscStats,
-      updatePayload: updatePayload
+      updatePayload: updatePayload,
+      azureUpdate: {
+        success: azureUpdateSuccess,
+        error: azureUpdateError,
+        response: azureUpdateResponse
+      },
+      supabaseUpdates: supabaseUpdateResults
     };
 
+    const responseStatus = azureUpdateSuccess ? 200 : 500;
+
     return {
-      statusCode: 200,
+      statusCode: responseStatus,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET,POST',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(debugInfo, null, 2)
+      body: JSON.stringify(finalResponse, null, 2)
     };
 
   } catch (error) {
