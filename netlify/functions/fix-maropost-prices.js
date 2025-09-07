@@ -49,7 +49,8 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // No parameters required - just fetch data from Supabase
+    // Check for response format parameter
+    const responseFormat = requestBody.responseFormat || 'detailed'; // 'detailed' or 'simple'
 
     // Fetch unresolved price mismatches from Supabase
     console.log('Fetching unresolved price mismatches from Supabase...');
@@ -68,22 +69,38 @@ exports.handler = async function(event, context) {
 
     if (mismatches.length === 0) {
       console.log('No unresolved mismatches found');
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'GET,POST',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          success: true,
-          message: 'No unresolved price mismatches found',
-          total: 0,
-          unresolved: 0,
-          data: { unresolved: [], pricingData: [] }
-        }, null, 2)
-      };
+
+      if (responseFormat === 'simple') {
+        return {
+          statusCode: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET,POST',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            supabaseUpdates: []
+          }, null, 2)
+        };
+      } else {
+        return {
+          statusCode: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET,POST',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            success: true,
+            message: 'No unresolved price mismatches found',
+            total: 0,
+            unresolved: 0,
+            data: { unresolved: [], pricingData: [] }
+          }, null, 2)
+        };
+      }
     }
 
     // Extract SKUs for Azure Logic Apps call
@@ -205,10 +222,16 @@ exports.handler = async function(event, context) {
     const step4 = step3.filter(item => item.discounted_supply_price);
     console.log(`Step 4 - Has discounted supply price: ${step4.length}`);
 
-    // Check if any items require manual update due to missing Misc02/Misc09
-    const manualUpdateRequired = step4.some(item => {
+    // Separate items that require manual update from those that can be processed
+    const itemsRequiringManualUpdate = [];
+    const validItems = [];
+
+    step4.forEach(item => {
       const azureData = item.azureData;
-      if (!azureData) return false;
+      if (!azureData) {
+        validItems.push(item);
+        return;
+      }
 
       const misc02Val = azureData.Misc02 ? parseFloat(azureData.Misc02) : null;
       const misc09Val = azureData.Misc09 ? parseFloat(azureData.Misc09) : null;
@@ -217,39 +240,25 @@ exports.handler = async function(event, context) {
       const misc02Unavailable = misc02Val === null || misc02Val === 0;
       const misc09Unavailable = misc09Val === null || misc09Val === 0;
 
-      return misc02Unavailable && misc09Unavailable;
+      if (misc02Unavailable && misc09Unavailable) {
+        itemsRequiringManualUpdate.push(item);
+      } else {
+        validItems.push(item);
+      }
     });
 
-    if (manualUpdateRequired) {
-      console.log('Manual update required - both Misc02 and Misc09 are unavailable for some items');
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'GET,POST',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          success: false,
-          message: 'Manual update required - Misc02 and Misc09 data is unavailable or zero for some items',
-          requiresManualUpdate: true,
-          total: mismatches.length,
-          itemsRequiringManualUpdate: step4.length,
-          data: step4.map(item => ({
-            sku: item.sku,
-            issue: 'Both Misc02 and Misc09 are unavailable or zero'
-          }))
-        }, null, 2)
-      };
-    }
+    console.log(`Items requiring manual update: ${itemsRequiringManualUpdate.length}`);
+    console.log(`Valid items for processing: ${validItems.length}`);
+
+    // Use validItems instead of step4 for the rest of the processing
+    const step4Valid = validItems;
 
     // Analyze all price groups to find majority price and identify groups to delete
     const allPriceGroups = [];
     const priceFrequency = new Map();
     const groupPriceMap = new Map(); // Track which groups have which prices
 
-    step4.forEach(item => {
+    step4Valid.forEach(item => {
       const azureData = item.azureData;
       if (azureData && azureData.PriceGroups && azureData.PriceGroups[0] && azureData.PriceGroups[0].PriceGroup) {
         const priceGroups = azureData.PriceGroups[0].PriceGroup;
@@ -313,7 +322,7 @@ exports.handler = async function(event, context) {
     console.log(`Groups that will be deleted: ${allPriceGroups.filter(id => id !== "1" && id !== "2" && !groupsWithLowerPrices.has(id)).join(', ') || 'None'}`);
 
     const updatePayload = {
-      Item: step4
+      Item: step4Valid
         .map((item, index) => {
           console.log(`=== Mapping item ${index} ===`);
           console.log(`item.sku: ${item.sku}`);
@@ -567,6 +576,16 @@ exports.handler = async function(event, context) {
 
     // Update Supabase records if Azure update was successful
     let supabaseUpdateResults = [];
+
+    // First, add items that require manual update
+    itemsRequiringManualUpdate.forEach(item => {
+      supabaseUpdateResults.push({
+        sku: item.sku,
+        success: false,
+        error: 'Manual update required - Misc02 and Misc09 data is unavailable or zero'
+      });
+    });
+
     if (azureUpdateSuccess && updatePayload.Item && updatePayload.Item.length > 0) {
       console.log('Updating Supabase records as resolved...');
 
@@ -599,28 +618,39 @@ exports.handler = async function(event, context) {
       }
     }
 
-    // Prepare final response
-    const finalResponse = {
-      success: azureUpdateSuccess,
-      totalSupabaseItems: mismatches.length,
-      totalCombinedResults: combinedResults.length,
-      step1FoundInAzure: step1.length,
-      step2HasListPrice: step2.length,
-      step3HasNewCustomersPrice: step3.length,
-      step4HasDiscountedPrice: step4.length,
-      finalPayloadItems: updatePayload.Item.length,
-      sampleCombinedResult: combinedResults[0] || null,
-      miscStats: miscStats,
-      updatePayload: updatePayload,
-      azureUpdate: {
-        success: azureUpdateSuccess,
-        error: azureUpdateError,
-        response: azureUpdateResponse
-      },
-      supabaseUpdates: supabaseUpdateResults
-    };
-
+    // Prepare final response based on format parameter
+    let finalResponse;
     const responseStatus = azureUpdateSuccess ? 200 : 500;
+
+    if (responseFormat === 'simple') {
+      // Return only the supabaseUpdates array
+      finalResponse = {
+        supabaseUpdates: supabaseUpdateResults
+      };
+    } else {
+      // Return detailed response (default)
+      finalResponse = {
+        success: azureUpdateSuccess,
+        totalSupabaseItems: mismatches.length,
+        totalCombinedResults: combinedResults.length,
+        step1FoundInAzure: step1.length,
+        step2HasListPrice: step2.length,
+        step3HasNewCustomersPrice: step3.length,
+        step4HasDiscountedPrice: step4.length,
+        validItemsForProcessing: step4Valid.length,
+        itemsRequiringManualUpdate: itemsRequiringManualUpdate.length,
+        finalPayloadItems: updatePayload.Item.length,
+        sampleCombinedResult: combinedResults[0] || null,
+        miscStats: miscStats,
+        updatePayload: updatePayload,
+        azureUpdate: {
+          success: azureUpdateSuccess,
+          error: azureUpdateError,
+          response: azureUpdateResponse
+        },
+        supabaseUpdates: supabaseUpdateResults
+      };
+    }
 
     return {
       statusCode: responseStatus,
