@@ -1,6 +1,6 @@
-const { supabase } = require('./utils/supabaseInit');
+const { supabase } = require('../utils/supabaseInit');
 
-exports.handler = async function(event, context) {
+exports.handler = async function (event, context) {
   try {
     // Validate Supabase environment variables
     const requiredVars = {
@@ -436,7 +436,7 @@ exports.handler = async function(event, context) {
 
                     // Get the old purchase price from Azure data
                     const oldPurchasePrice = azureData && azureData.DefaultPurchasePrice ?
-                                           parseFloat(azureData.DefaultPurchasePrice) : null;
+                      parseFloat(azureData.DefaultPurchasePrice) : null;
 
                     if (!oldPurchasePrice) {
                       console.log(`No old purchase price found in Azure data, skipping adjustments`);
