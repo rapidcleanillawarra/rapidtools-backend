@@ -506,15 +506,17 @@
                                 <th style="width: 60px;">#</th>
                                 <th>Username</th>
                                 <th>Email</th>
+                                <th>Source</th>
                                 <th>Total Orders</th>
-                                <th>Calculated Balance</th>
-                                <th>API Account Balance</th>
+                                <th>All Invoices Balance (Order)</th>
+                                <th>Due Invoice Balance (Order)</th>
+                                <th>Total Balance (Customer)</th>
                                 <th>Balance Match</th>
                             </tr>
                         </thead>
                         <tbody id="customersTableBody">
                             <tr>
-                                <td colspan="6" style="text-align: center; padding: 40px;">
+                                <td colspan="9" style="text-align: center; padding: 40px;">
                                     Click "Run Balance Check" to load data
                                 </td>
                             </tr>
@@ -638,7 +640,7 @@
 
         function updateCustomersTable(customers) {
             if (!customers || customers.length === 0) {
-                customersTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;">No customer data available</td></tr>';
+                customersTableBody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px;">No customer data available</td></tr>';
                 return;
             }
 
@@ -650,10 +652,12 @@
                 .map((customer, index) => `
                     <tr data-customer-index="${index}">
                         <td style="text-align: center; font-weight: 600; color: #64748b;">${index + 1}</td>
-                        <td><a href="https://www.rapidsupplies.com.au/_cpanel/salesorder/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></td>
+                        <td><a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></td>
                         <td>${customer.email || '-'}</td>
+                        <td>${customer.source || 'Unknown'}</td>
                         <td>${customer.total_orders}</td>
                         <td>$${customer.total_balance.toFixed(2)}</td>
+                        <td>$${customer.due_invoice_balance.toFixed(2)}</td>
                         <td>${customer.api_account_balance !== null ? '$' + customer.api_account_balance.toFixed(2) : 'N/A'}</td>
                         <td>
                             <span class="balance-match ${customer.balance_matches}">
@@ -708,22 +712,30 @@
                     <div class="summary-grid">
                         <div class="summary-item">
                             <div class="label">Username</div>
-                            <div class="value"><a href="https://www.rapidsupplies.com.au/_cpanel/salesorder/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></div>
+                            <div class="value"><a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></div>
                         </div>
                         <div class="summary-item">
                             <div class="label">Email</div>
                             <div class="value">${customer.email || 'N/A'}</div>
                         </div>
                         <div class="summary-item">
+                            <div class="label">Source</div>
+                            <div class="value">${customer.source || 'Unknown'}</div>
+                        </div>
+                        <div class="summary-item">
                             <div class="label">Total Orders</div>
                             <div class="value">${customer.total_orders}</div>
                         </div>
                         <div class="summary-item">
-                            <div class="label">Total Balance</div>
+                            <div class="label">All Invoices Balance (Order)</div>
                             <div class="value">$${customer.total_balance.toFixed(2)}</div>
                         </div>
                         <div class="summary-item">
-                            <div class="label">API Balance</div>
+                            <div class="label">Due Invoice Balance (Order)</div>
+                            <div class="value">$${customer.due_invoice_balance.toFixed(2)}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Total Balance (Customer)</div>
                             <div class="value">${customer.api_account_balance !== null ? '$' + customer.api_account_balance.toFixed(2) : 'N/A'}</div>
                         </div>
                         <div class="summary-item">

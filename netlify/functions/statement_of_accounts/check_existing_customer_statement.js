@@ -216,13 +216,21 @@ const handler = async (event) => {
 
         console.log(`Prepared ${updates.length} updates and ${inserts.length} inserts`);
 
-        // Step 5.5: Calculate customer balances
-        console.log('Step 5.5: Calculating customer balances...');
+        // Step 5.5: Calculate customer balances and collect all usernames
+        console.log('Step 5.5: Calculating customer balances and collecting all usernames...');
 
         const customerBalances = {};
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to start of day for date comparison
+
+        // Track usernames from orders
+        const orderUsernames = new Set();
+
         orders.forEach(order => {
             const username = order.Username;
             if (!username) return;
+
+            orderUsernames.add(username);
 
             const grandTotal = parseFloat(order.GrandTotal || 0);
             const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
@@ -230,12 +238,21 @@ const handler = async (event) => {
                 : 0;
             const outstandingAmount = grandTotal - paymentsSum;
 
+            // Check if order is past due
+            let isPastDue = false;
+            if (order.DatePaymentDue) {
+                const dueDate = new Date(order.DatePaymentDue);
+                dueDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
+                isPastDue = dueDate < today;
+            }
+
             if (!customerBalances[username]) {
                 customerBalances[username] = {
                     customer_username: username,
                     email: order.Email || '',
                     total_orders: 0,
                     total_balance: 0,
+                    due_invoice_balance: 0,
                     orders: []
                 };
             }
@@ -243,18 +260,54 @@ const handler = async (event) => {
             customerBalances[username].total_orders += 1;
             customerBalances[username].total_balance += outstandingAmount;
 
+            // Add to due invoice balance only if past due
+            if (isPastDue) {
+                customerBalances[username].due_invoice_balance += outstandingAmount;
+            }
+
             // Add order details
             customerBalances[username].orders.push({
                 id: order.ID,
                 grandTotal: grandTotal,
                 payments: order.OrderPayment || [],
                 outstandingAmount: outstandingAmount,
-                datePaymentDue: order.DatePaymentDue || null
+                datePaymentDue: order.DatePaymentDue || null,
+                isPastDue: isPastDue
             });
         });
 
-        const customerList = Object.values(customerBalances);
-        console.log(`Calculated balances for ${customerList.length} customers`);
+        // Collect all unique usernames from both sources
+        const allUsernames = new Set([...Object.keys(customerLookup), ...orderUsernames]);
+
+        // Build complete customer list with source tracking
+        const customerList = [];
+        allUsernames.forEach(username => {
+            const fromOrders = orderUsernames.has(username);
+            const fromCustomerApi = customerLookup.hasOwnProperty(username);
+
+            let source = '';
+            if (fromOrders && fromCustomerApi) {
+                source = 'Both';
+            } else if (fromOrders) {
+                source = 'Orders Only';
+            } else if (fromCustomerApi) {
+                source = 'Customer API Only';
+            }
+
+            const customerData = customerBalances[username] || {
+                customer_username: username,
+                email: '',
+                total_orders: 0,
+                total_balance: 0,
+                due_invoice_balance: 0,
+                orders: []
+            };
+
+            customerData.source = source;
+            customerList.push(customerData);
+        });
+
+        console.log(`Processed ${customerList.length} customers (${allUsernames.size} unique usernames)`);
 
         // Step 5.6: Compare calculated balances with customer API AccountBalance
         console.log('Step 5.6: Comparing calculated balances with customer API AccountBalance...');
