@@ -59,7 +59,9 @@ const handler = async (event) => {
                     OutputSelector: [
                         'ID',
                         'Username',
-                        'Email'
+                        'Email',
+                        'GrandTotal',
+                        'OrderPayment'
                     ]
                 },
                 action: 'GetOrder'
@@ -71,9 +73,26 @@ const handler = async (event) => {
         }
 
         const apiData = await apiResponse.json();
-        const orders = apiData?.Order || [];
+        let orders = apiData?.Order || [];
 
         console.log(`Fetched ${orders.length} orders from API`);
+
+        // Step 1.5: Filter out orders where outstanding amount ≤ $0.01 if grandtotal is 0
+        orders = orders.filter(order => {
+            const grandTotal = parseFloat(order.GrandTotal || 0);
+            const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+                ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+                : 0;
+            const outstandingAmount = grandTotal - paymentsSum;
+
+            // Filter out orders where grandtotal is 0 and outstanding amount ≤ $0.01
+            if (grandTotal === 0 && outstandingAmount <= 0.01) {
+                return false;
+            }
+            return true;
+        });
+
+        console.log(`After filtering: ${orders.length} orders remaining`);
 
         // Step 2: Extract unique customer usernames
         console.log('Step 2: Extracting unique customer usernames...');
@@ -137,13 +156,48 @@ const handler = async (event) => {
 
         console.log(`Prepared ${updates.length} updates and ${inserts.length} inserts`);
 
-        // Step 5: Execute database operations
-        console.log('Step 5: Executing database synchronization...');
+        // Step 4.5: Calculate customer balances
+        console.log('Step 4.5: Calculating customer balances...');
+
+        const customerBalances = {};
+        orders.forEach(order => {
+            const username = order.Username;
+            if (!username) return;
+
+            const grandTotal = parseFloat(order.GrandTotal || 0);
+            const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+                ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+                : 0;
+            const outstandingAmount = grandTotal - paymentsSum;
+
+            if (!customerBalances[username]) {
+                customerBalances[username] = {
+                    customer_username: username,
+                    email: order.Email || '',
+                    total_orders: 0,
+                    total_balance: 0
+                };
+            }
+
+            customerBalances[username].total_orders += 1;
+            customerBalances[username].total_balance += outstandingAmount;
+        });
+
+        const customerList = Object.values(customerBalances);
+        console.log(`Calculated balances for ${customerList.length} customers`);
+
+        // Step 5: Execute database operations (DISABLED)
+        console.log('Step 5: Database operations disabled - skipping synchronization...');
 
         const promises = [];
         let updatedCount = 0;
         let insertedCount = 0;
 
+        // Database operations are disabled
+        console.log(`Would have updated ${updates.length} records`);
+        console.log(`Would have inserted ${inserts.length} records`);
+
+        /*
         // Execute updates
         if (updates.length > 0) {
             const { error: updateError } = await supabase
@@ -169,6 +223,7 @@ const handler = async (event) => {
             insertedCount = inserts.length;
             console.log(`Inserted ${insertedCount} records`);
         }
+        */
 
         // Success response with statistics
         const response = {
@@ -181,6 +236,7 @@ const handler = async (event) => {
                 records_inserted: insertedCount,
                 total_processed: updatedCount + insertedCount
             },
+            customers: customerList,
             timestamp
         };
 
