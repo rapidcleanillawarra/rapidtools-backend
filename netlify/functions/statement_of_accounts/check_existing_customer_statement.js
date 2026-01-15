@@ -59,29 +59,55 @@ const handler = async (event) => {
     }
 
     try {
-        // Step 1: Fetch customers from Power Automate API
-        console.log('Step 1: Fetching customers from Power Automate API...');
-
         const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
 
-        const customerApiResponse = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                Filter: {
-                    Active: true,
-                    OutputSelector: [
-                        "EmailAddress",
-                        "Company",
-                        "AccountBalance"
-                    ]
-                },
-                action: "GetCustomer"
-            })
-        });
+        // Step 1 & 2: Fetch customers and orders in PARALLEL to reduce execution time
+        console.log('Step 1 & 2: Fetching customers and orders from Power Automate API in parallel...');
 
+        const [customerApiResponse, apiResponse] = await Promise.all([
+            // Fetch customers
+            fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    Filter: {
+                        Active: true,
+                        OutputSelector: [
+                            "EmailAddress",
+                            "Company",
+                            "AccountBalance"
+                        ]
+                    },
+                    action: "GetCustomer"
+                })
+            }),
+            // Fetch orders
+            fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    Filter: {
+                        OrderStatus: ['Dispatched'],
+                        PaymentStatus: ['Pending', 'PartialPaid'],
+                        OutputSelector: [
+                            'ID',
+                            'Username',
+                            'Email',
+                            'GrandTotal',
+                            'OrderPayment',
+                            'DatePaymentDue'
+                        ]
+                    },
+                    action: 'GetOrder'
+                })
+            })
+        ]);
+
+        // Process customer response
         if (!customerApiResponse.ok) {
             throw new Error(`Customer API request failed with status ${customerApiResponse.status}`);
         }
@@ -103,33 +129,9 @@ const handler = async (event) => {
             }
         });
 
-        // Step 2: Fetch orders from Power Automate API
-        console.log('Step 2: Fetching orders from Power Automate API...');
-
-        const apiResponse = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                Filter: {
-                    OrderStatus: ['Dispatched'],
-                    PaymentStatus: ['Pending', 'PartialPaid'],
-                    OutputSelector: [
-                        'ID',
-                        'Username',
-                        'Email',
-                        'GrandTotal',
-                        'OrderPayment',
-                        'DatePaymentDue'
-                    ]
-                },
-                action: 'GetOrder'
-            })
-        });
-
+        // Process orders response
         if (!apiResponse.ok) {
-            throw new Error(`API request failed with status ${apiResponse.status}`);
+            throw new Error(`Orders API request failed with status ${apiResponse.status}`);
         }
 
         const apiData = await apiResponse.json();
@@ -137,7 +139,7 @@ const handler = async (event) => {
 
         console.log(`Fetched ${orders.length} orders from API`);
 
-        // Step 2.5: Filter out orders where outstanding amount ≤ $0.01 if grandtotal is 0
+        // Step 2.5: Filter out orders where outstanding amount ≤ $0.01 or grandtotal is 0
         orders = orders.filter(order => {
             const grandTotal = parseFloat(order.GrandTotal || 0);
             const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
