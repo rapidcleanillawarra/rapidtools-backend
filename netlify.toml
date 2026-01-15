@@ -3,5 +3,11 @@
 
 [build]
   functions = "netlify/functions"
-  command   = "echo Deploying functions"
-  publish   = "." 
+  command   = "echo Deploying functions and UI"
+  publish   = "."
+
+# Redirect all traffic to index.html for SPA-like behavior
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 

@@ -120,7 +120,8 @@ const handler = async (event) => {
                         'Username',
                         'Email',
                         'GrandTotal',
-                        'OrderPayment'
+                        'OrderPayment',
+                        'DatePaymentDue'
                     ]
                 },
                 action: 'GetOrder'
@@ -234,12 +235,22 @@ const handler = async (event) => {
                     customer_username: username,
                     email: order.Email || '',
                     total_orders: 0,
-                    total_balance: 0
+                    total_balance: 0,
+                    orders: []
                 };
             }
 
             customerBalances[username].total_orders += 1;
             customerBalances[username].total_balance += outstandingAmount;
+
+            // Add order details
+            customerBalances[username].orders.push({
+                id: order.ID,
+                grandTotal: grandTotal,
+                payments: order.OrderPayment || [],
+                outstandingAmount: outstandingAmount,
+                datePaymentDue: order.DatePaymentDue || null
+            });
         });
 
         const customerList = Object.values(customerBalances);
