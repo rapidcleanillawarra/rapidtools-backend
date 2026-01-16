@@ -6,6 +6,11 @@
   command   = "echo Deploying functions and UI"
   publish   = "."
 
+# Function settings
+[functions]
+  # Increase timeout to 26 seconds (requires paid plan, default is 10s on free tier)
+  # node_bundler = "esbuild"
+
 # Redirect all traffic to index.html for SPA-like behavior
 [[redirects]]
   from = "/*"

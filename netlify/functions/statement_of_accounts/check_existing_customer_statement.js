@@ -28,6 +28,10 @@ const filterCustomersByBalance = (customers) => {
  */
 
 const handler = async (event) => {
+    console.log('=== Function Invoked ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('HTTP Method:', event.httpMethod);
+    
     // CORS headers
     const headers = {
         'Content-Type': 'application/json',
@@ -59,53 +63,68 @@ const handler = async (event) => {
     }
 
     try {
+        // Validate Supabase initialization
+        console.log('Validating Supabase connection...');
+        if (!supabase) {
+            console.error('Supabase client is null or undefined');
+            throw new Error('Supabase client not initialized. Please check environment variables: SUPABASE_URL and SUPABASE_ANON_KEY');
+        }
+        console.log('Supabase validation passed');
+
         const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
 
         // Step 1 & 2: Fetch customers and orders in PARALLEL to reduce execution time
         console.log('Step 1 & 2: Fetching customers and orders from Power Automate API in parallel...');
 
-        const [customerApiResponse, apiResponse] = await Promise.all([
-            // Fetch customers
-            fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    Filter: {
-                        Active: true,
-                        OutputSelector: [
-                            "EmailAddress",
-                            "Company",
-                            "AccountBalance"
-                        ]
+        let customerApiResponse, apiResponse;
+        
+        try {
+            [customerApiResponse, apiResponse] = await Promise.all([
+                // Fetch customers
+                fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
                     },
-                    action: "GetCustomer"
-                })
-            }),
-            // Fetch orders
-            fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    Filter: {
-                        OrderStatus: ['Dispatched'],
-                        PaymentStatus: ['Pending', 'PartialPaid'],
-                        OutputSelector: [
-                            'ID',
-                            'Username',
-                            'Email',
-                            'GrandTotal',
-                            'OrderPayment',
-                            'DatePaymentDue'
-                        ]
+                    body: JSON.stringify({
+                        Filter: {
+                            Active: true,
+                            OutputSelector: [
+                                "EmailAddress",
+                                "Company",
+                                "AccountBalance"
+                            ]
+                        },
+                        action: "GetCustomer"
+                    })
+                }),
+                // Fetch orders
+                fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
                     },
-                    action: 'GetOrder'
+                    body: JSON.stringify({
+                        Filter: {
+                            OrderStatus: ['Dispatched'],
+                            PaymentStatus: ['Pending', 'PartialPaid'],
+                            OutputSelector: [
+                                'ID',
+                                'Username',
+                                'Email',
+                                'GrandTotal',
+                                'OrderPayment',
+                                'DatePaymentDue'
+                            ]
+                        },
+                        action: 'GetOrder'
+                    })
                 })
-            })
-        ]);
+            ]);
+        } catch (fetchError) {
+            console.error('API fetch error:', fetchError);
+            throw new Error(`Failed to fetch data from Power Automate API: ${fetchError.message}`);
+        }
 
         // Process customer response
         if (!customerApiResponse.ok) {
@@ -401,7 +420,15 @@ const handler = async (event) => {
         };
 
     } catch (error) {
-        console.error('Error during synchronization:', error);
+        console.error('=== ERROR OCCURRED ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error type:', error.constructor.name);
+        console.error('Environment check:', {
+            hasSupabaseUrl: !!process.env.SUPABASE_URL,
+            hasSupabaseKey: !!process.env.SUPABASE_ANON_KEY,
+            nodeVersion: process.version
+        });
 
         return {
             statusCode: 500,
@@ -410,7 +437,8 @@ const handler = async (event) => {
                 success: false,
                 error: error.message,
                 details: error.stack,
-                message: 'An error occurred during synchronization'
+                message: 'An error occurred during synchronization',
+                timestamp: new Date().toISOString()
             })
         };
     }
