@@ -90,6 +90,7 @@ const handler = async (event) => {
                         Filter: {
                             Active: true,
                             OutputSelector: [
+                                "Username",
                                 "EmailAddress",
                                 "Company",
                                 "AccountBalance"
@@ -268,13 +269,14 @@ const handler = async (event) => {
             }
 
             if (!customerBalances[username]) {
-                // Get company name from customer lookup if available
+                // Get company name and email from customer API response (prioritize over order data)
                 const customerApiData = customerLookup[username];
                 const companyName = customerApiData?.Company || '';
+                const emailFromApi = customerApiData?.EmailAddress || '';
                 
                 customerBalances[username] = {
                     customer_username: username,
-                    email: order.Email || '',
+                    email: emailFromApi || order.Email || '',
                     company_name: companyName,
                     total_orders: 0,
                     total_balance: 0,
@@ -320,13 +322,14 @@ const handler = async (event) => {
                 source = 'Customer API Only';
             }
 
-            // Get company name from customer lookup if available
+            // Get company name and email from customer API response (prioritize over existing data)
             const customerApiData = customerLookup[username];
             const companyName = customerApiData?.Company || '';
+            const emailFromApi = customerApiData?.EmailAddress || '';
             
             const customerData = customerBalances[username] || {
                 customer_username: username,
-                email: '',
+                email: emailFromApi || '',
                 company_name: companyName,
                 total_orders: 0,
                 total_balance: 0,
@@ -334,9 +337,15 @@ const handler = async (event) => {
                 orders: []
             };
             
-            // Ensure company_name is set even if customerBalances exists
-            if (customerData && !customerData.company_name && companyName) {
-                customerData.company_name = companyName;
+            // Ensure company_name and email from customer API are set/updated even if customerBalances exists
+            if (customerData) {
+                if (!customerData.company_name && companyName) {
+                    customerData.company_name = companyName;
+                }
+                // Update email from customer API if available and not already set from orders
+                if (emailFromApi && (!customerData.email || customerData.email === '')) {
+                    customerData.email = emailFromApi;
+                }
             }
 
             customerData.source = source;
