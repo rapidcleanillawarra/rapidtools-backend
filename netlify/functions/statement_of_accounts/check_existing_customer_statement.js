@@ -3,7 +3,7 @@ const { supabase } = require('../utils/supabaseInit');
 /**
  * Filter customers by account balance
  * @param {Array} customers - Array of customer objects from API
- * @returns {Array} Filtered array of customers with AccountBalance > 0
+ * @returns {Array} Filtered array of customers with AccountBalance != 0 (includes negative and positive balances)
  */
 const filterCustomersByBalance = (customers) => {
     if (!Array.isArray(customers)) {
@@ -12,7 +12,7 @@ const filterCustomersByBalance = (customers) => {
 
     return customers.filter(customer => {
         const balance = parseFloat(customer.AccountBalance || 0);
-        return balance > 0;
+        return balance !== 0;
     });
 };
 
@@ -20,7 +20,7 @@ const filterCustomersByBalance = (customers) => {
  * Statement of Accounts - Check Existing Customer Statement
  *
  * This function implements a synchronization workflow that:
- * 1. Fetches customers from Power Automate API and filters by balance
+ * 1. Fetches customers from Power Automate API and filters by balance (excludes zero balance customers)
  * 2. Fetches orders from Power Automate Orders API (Dispatched orders with Pending/PartialPaid status)
  * 3. Extracts unique customer usernames from the orders
  * 4. Compares with existing Supabase statement_of_accounts records
@@ -137,9 +137,9 @@ const handler = async (event) => {
 
         console.log(`Fetched ${allCustomers.length} customers from API`);
 
-        // Filter out customers with zero or negative account balance
+        // Filter out customers with zero account balance (include negative and positive balances)
         const filteredCustomers = filterCustomersByBalance(allCustomers);
-        console.log(`After filtering: ${filteredCustomers.length} customers remaining (removed ${allCustomers.length - filteredCustomers.length} with zero/negative balance)`);
+        console.log(`After filtering: ${filteredCustomers.length} customers remaining (removed ${allCustomers.length - filteredCustomers.length} with zero balance)`);
 
         // Create a lookup map of filtered customers by Username for balance matching
         const customerLookup = {};
