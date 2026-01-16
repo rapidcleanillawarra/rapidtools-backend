@@ -92,7 +92,7 @@ const handler = async (event) => {
                             OutputSelector: [
                                 "Username",
                                 "EmailAddress",
-                                "Company",
+                                "BillingAddress",
                                 "AccountBalance"
                             ]
                         },
@@ -271,7 +271,7 @@ const handler = async (event) => {
             if (!customerBalances[username]) {
                 // Get company name and email from customer API response (prioritize over order data)
                 const customerApiData = customerLookup[username];
-                const companyName = customerApiData?.Company || '';
+                const companyName = customerApiData?.BillingAddress?.BillCompany || '';
                 const emailFromApi = customerApiData?.EmailAddress || '';
                 
                 customerBalances[username] = {
@@ -324,7 +324,7 @@ const handler = async (event) => {
 
             // Get company name and email from customer API response (prioritize over existing data)
             const customerApiData = customerLookup[username];
-            const companyName = customerApiData?.Company || '';
+            const companyName = customerApiData?.BillingAddress?.BillCompany || '';
             const emailFromApi = customerApiData?.EmailAddress || '';
             
             const customerData = customerBalances[username] || {
