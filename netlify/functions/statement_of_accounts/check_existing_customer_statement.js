@@ -268,9 +268,14 @@ const handler = async (event) => {
             }
 
             if (!customerBalances[username]) {
+                // Get company name from customer lookup if available
+                const customerApiData = customerLookup[username];
+                const companyName = customerApiData?.Company || '';
+                
                 customerBalances[username] = {
                     customer_username: username,
                     email: order.Email || '',
+                    company_name: companyName,
                     total_orders: 0,
                     total_balance: 0,
                     due_invoice_balance: 0,
@@ -315,14 +320,24 @@ const handler = async (event) => {
                 source = 'Customer API Only';
             }
 
+            // Get company name from customer lookup if available
+            const customerApiData = customerLookup[username];
+            const companyName = customerApiData?.Company || '';
+            
             const customerData = customerBalances[username] || {
                 customer_username: username,
                 email: '',
+                company_name: companyName,
                 total_orders: 0,
                 total_balance: 0,
                 due_invoice_balance: 0,
                 orders: []
             };
+            
+            // Ensure company_name is set even if customerBalances exists
+            if (customerData && !customerData.company_name && companyName) {
+                customerData.company_name = companyName;
+            }
 
             customerData.source = source;
             customerList.push(customerData);

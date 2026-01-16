@@ -1,0 +1,179 @@
+{
+  "success": true,
+  "message": "Synchronization completed successfully",
+  "stats": {
+    "customer_api_usernames": 5,
+    "order_api_unique_username": 4,
+    "matched_balances_count": 2,
+    "unmatched_balances_count": 3,
+    "usernames_with_unmatched_balances": [
+      "customer_with_unmatched_balance",
+      "orders_only_customer",
+      "api_only_customer"
+    ]
+  },
+  "customers": [
+    {
+      "customer_username": "john_doe",
+      "email": "john.doe@example.com",
+      "company_name": "ABC Corporation",
+      "total_orders": 3,
+      "total_balance": 1500.75,
+      "due_invoice_balance": 800.50,
+      "source": "Both",
+      "balance_matches": true,
+      "api_account_balance": 1500.75,
+      "orders": [
+        {
+          "id": "ORD-001",
+          "grandTotal": 1000.00,
+          "payments": [
+            {
+              "Amount": 200.00
+            }
+          ],
+          "outstandingAmount": 800.00,
+          "datePaymentDue": "2024-01-15T00:00:00.000Z",
+          "isPastDue": true
+        },
+        {
+          "id": "ORD-002",
+          "grandTotal": 500.50,
+          "payments": [],
+          "outstandingAmount": 500.50,
+          "datePaymentDue": "2024-02-20T00:00:00.000Z",
+          "isPastDue": false
+        },
+        {
+          "id": "ORD-003",
+          "grandTotal": 200.25,
+          "payments": [
+            {
+              "Amount": 200.25
+            }
+          ],
+          "outstandingAmount": 0.00,
+          "datePaymentDue": "2024-03-10T00:00:00.000Z",
+          "isPastDue": false
+        }
+      ]
+    },
+    {
+      "customer_username": "customer_with_unmatched_balance",
+      "email": "unmatched@example.com",
+      "company_name": "XYZ Ltd",
+      "total_orders": 2,
+      "total_balance": 750.30,
+      "due_invoice_balance": 0,
+      "source": "Both",
+      "balance_matches": false,
+      "api_account_balance": 800.00,
+      "orders": [
+        {
+          "id": "ORD-004",
+          "grandTotal": 500.00,
+          "payments": [
+            {
+              "Amount": 100.00
+            }
+          ],
+          "outstandingAmount": 400.00,
+          "datePaymentDue": "2024-04-01T00:00:00.000Z",
+          "isPastDue": false
+        },
+        {
+          "id": "ORD-005",
+          "grandTotal": 350.30,
+          "payments": [],
+          "outstandingAmount": 350.30,
+          "datePaymentDue": "2024-04-15T00:00:00.000Z",
+          "isPastDue": false
+        }
+      ]
+    },
+    {
+      "customer_username": "orders_only_customer",
+      "email": "ordersonly@example.com",
+      "company_name": "",
+      "total_orders": 1,
+      "total_balance": 250.00,
+      "due_invoice_balance": 250.00,
+      "source": "Orders Only",
+      "balance_matches": false,
+      "api_account_balance": null,
+      "orders": [
+        {
+          "id": "ORD-006",
+          "grandTotal": 250.00,
+          "payments": [],
+          "outstandingAmount": 250.00,
+          "datePaymentDue": "2024-01-10T00:00:00.000Z",
+          "isPastDue": true
+        }
+      ]
+    },
+    {
+      "customer_username": "api_only_customer",
+      "email": "",
+      "company_name": "Tech Solutions Inc",
+      "total_orders": 0,
+      "total_balance": 0,
+      "due_invoice_balance": 0,
+      "source": "Customer API Only",
+      "balance_matches": false,
+      "api_account_balance": 500.00,
+      "orders": []
+    },
+    {
+      "customer_username": "jane_smith",
+      "email": "jane.smith@example.com",
+      "company_name": "Smith & Associates",
+      "total_orders": 1,
+      "total_balance": 1200.00,
+      "due_invoice_balance": 0,
+      "source": "Both",
+      "balance_matches": true,
+      "api_account_balance": 1200.00,
+      "orders": [
+        {
+          "id": "ORD-007",
+          "grandTotal": 1200.00,
+          "payments": [],
+          "outstandingAmount": 1200.00,
+          "datePaymentDue": "2024-05-20T00:00:00.000Z",
+          "isPastDue": false
+        }
+      ]
+    },
+    {
+      "customer_username": "customer_no_company",
+      "email": "nocompany@example.com",
+      "company_name": "",
+      "total_orders": 2,
+      "total_balance": 450.75,
+      "due_invoice_balance": 200.25,
+      "source": "Both",
+      "balance_matches": true,
+      "api_account_balance": 450.75,
+      "orders": [
+        {
+          "id": "ORD-008",
+          "grandTotal": 200.25,
+          "payments": [],
+          "outstandingAmount": 200.25,
+          "datePaymentDue": "2024-01-05T00:00:00.000Z",
+          "isPastDue": true
+        },
+        {
+          "id": "ORD-009",
+          "grandTotal": 250.50,
+          "payments": [],
+          "outstandingAmount": 250.50,
+          "datePaymentDue": "2024-06-01T00:00:00.000Z",
+          "isPastDue": false
+        }
+      ]
+    }
+  ],
+  "timestamp": "2024-04-20T10:30:45.123Z"
+}
