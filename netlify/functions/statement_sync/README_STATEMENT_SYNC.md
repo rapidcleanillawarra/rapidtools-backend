@@ -7,7 +7,13 @@ This function processes accounting bot responses to prepare data for the `statem
 ## Function: `statement_db_synchronization`
 
 ### Location
-`netlify/functions/statement_sync/statement_db_synchronization.js`
+### Location
+`netlify/functions/statement_sync/statement_db_synchronization.js` (Logic)
+`netlify/functions/statement_db_synchronization.js` (Wrapper)
+
+### Endpoint
+`POST /.netlify/functions/statement_db_synchronization`
+
 
 ### Input
 
