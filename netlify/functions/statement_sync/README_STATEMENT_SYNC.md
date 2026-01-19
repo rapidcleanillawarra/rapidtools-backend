@@ -7,7 +7,7 @@ This function processes accounting bot responses to prepare data for the `statem
 ## Function: `statement_db_synchronization`
 
 ### Location
-`netlify/functions/accounting_bot/statement_db_synchronization.js`
+`netlify/functions/statement_sync/statement_db_synchronization.js`
 
 ### Input
 
@@ -114,7 +114,7 @@ To enable database saving:
 Run the test file to verify calculations:
 
 ```bash
-node netlify/functions/accounting_bot/test_statement_sync.js
+node netlify/functions/statement_sync/test_statement_sync.js
 ```
 
 ## Features

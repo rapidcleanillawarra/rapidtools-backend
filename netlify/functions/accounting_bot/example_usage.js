@@ -5,7 +5,7 @@
  * with sample data from the accounting_bot response.
  */
 
-const { statement_db_synchronization } = require('./statement_db_synchronization');
+const { statement_db_synchronization } = require('../statement_sync/statement_db_synchronization');
 
 // Sample accounting bot response data
 const sampleAccountingBotResponse = {
