@@ -191,6 +191,22 @@ const handler = async (event) => {
     }
 
     try {
+        // Parse request payload
+        let payload = {};
+        try {
+            payload = JSON.parse(event.body || '{}');
+        } catch (parseError) {
+            console.warn('Failed to parse request body, using default payload:', parseError.message);
+        }
+
+        // Extract db_save parameter with default value of true
+        const dbSave = payload.db_save !== undefined ? payload.db_save : true;
+        console.log('Database save enabled:', dbSave);
+
+        // Extract joeven_testing parameter with default value of false
+        const joevenTesting = payload.joeven_testing !== undefined ? payload.joeven_testing : false;
+        console.log('Joeven testing mode enabled:', joevenTesting);
+
         // Step 1: Call check_existing_customer_statement API to get customer data
         console.log('Step 1: Fetching customer statement data...');
 
@@ -231,58 +247,90 @@ const handler = async (event) => {
 
         console.log(`Received data for ${statementData.customers.length} customers`);
 
+        // Apply joeven_testing limit if enabled
+        let customersToProcess = statementData.customers;
+        if (joevenTesting) {
+            customersToProcess = statementData.customers.slice(0, 10);
+            console.log(`Joeven testing mode: Limiting to first 10 customers (${customersToProcess.length} customers to process)`);
+        }
+
         // Step 2: Process each customer's orders
         console.log('Step 2: Processing customer orders...');
 
-        const { processedRecords, totalOrders, stats } = processCustomerData(statementData.customers);
+        const { processedRecords, totalOrders, stats } = processCustomerData(customersToProcess);
 
         console.log(`\n=== PROCESSING COMPLETE ===`);
-        console.log(`Total Customers: ${statementData.customers.length}`);
+        console.log(`Total Customers Received: ${statementData.customers.length}`);
+        console.log(`Customers Processed: ${customersToProcess.length}${joevenTesting ? ' (limited by joeven_testing)' : ''}`);
         console.log(`Total Orders Processed: ${totalOrders}`);
         console.log(`Records Prepared: ${processedRecords.length}`);
         console.log(`Customers with Zero Balance: ${stats.customersWithZeroBalance}`);
         console.log(`Customers with Balance: ${stats.customersWithBalance}`);
 
-        // Step 3: Database save (currently disabled)
-        console.log('\n=== DATABASE SAVE DISABLED ===');
-        console.log('Records prepared but not saved to database (as requested)');
-        console.log('To enable saving, uncomment the database insert code below');
-        console.log('========================\n');
+        // Step 3: Database save (conditional based on payload)
+        if (dbSave) {
+            console.log('\n=== DATABASE SAVE ENABLED ===');
 
-        /*
-        // Uncomment to enable database saving
-        if (!supabase) {
-            throw new Error('Supabase client not initialized');
+            if (!supabase) {
+                throw new Error('Supabase client not initialized');
+            }
+
+            console.log('Step 3: Saving records to database...');
+
+            const { data, error } = await supabase
+                .from('statement_of_accounts')
+                .insert(processedRecords)
+                .select();
+
+            if (error) {
+                throw new Error(`Failed to insert records: ${error.message}`);
+            }
+
+            console.log(`Successfully saved ${data.length} records to database`);
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Records synchronized and saved to database successfully',
+                    db_save: true,
+                    version: '1.4.0', // Updated version to reflect db_save and joeven_testing functionality
+                    stats: {
+                        customer_api_usernames: statementData.customers.length,
+                        order_api_unique_username: new Set(processedRecords.map(r => r.customer_username)).size,
+                        orders_processed: totalOrders,
+                        records_saved: data.length,
+                        customers_with_zero_balance: stats.customersWithZeroBalance,
+                        customers_with_balance: stats.customersWithBalance
+                    },
+                    timestamp: new Date().toISOString()
+                })
+            };
+        } else {
+            console.log('\n=== DATABASE SAVE DISABLED ===');
+            console.log('Records prepared but not saved to database (db_save: false)');
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Records prepared successfully (not saved to database)',
+                    db_save: false,
+                    version: '1.4.0', // Updated version to reflect db_save and joeven_testing functionality
+                    stats: {
+                        customer_api_usernames: statementData.customers.length,
+                        order_api_unique_username: new Set(processedRecords.map(r => r.customer_username)).size,
+                        orders_processed: totalOrders,
+                        records_prepared: processedRecords.length,
+                        customers_with_zero_balance: stats.customersWithZeroBalance,
+                        customers_with_balance: stats.customersWithBalance
+                    },
+                    timestamp: new Date().toISOString()
+                })
+            };
         }
-
-        console.log('Step 3: Saving records to database...');
-        
-        const { data, error } = await supabase
-            .from('statement_of_accounts')
-            .insert(processedRecords)
-            .select();
-
-        if (error) {
-            throw new Error(`Failed to insert records: ${error.message}`);
-        }
-
-        console.log(`Successfully saved ${data.length} records to database`);
-        
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-                success: true,
-                message: 'Records synchronized successfully',
-                stats: {
-                    customers: statementData.customers.length,
-                    orders_processed: totalOrders,
-                    records_saved: data.length
-                },
-                records: data
-            })
-        };
-        */
 
         // Return success response with limited data as requested
         return {
@@ -291,7 +339,7 @@ const handler = async (event) => {
             body: JSON.stringify({
                 success: true,
                 message: 'Records prepared successfully (not saved to database)',
-                version: '1.2.0', // Debug version to confirm code update
+                version: '1.4.0', // Updated version to reflect db_save and joeven_testing functionality
                 stats: {
                     customer_api_usernames: statementData.customers.length, // Keeping this as a total count
                     order_api_unique_username: new Set(processedRecords.map(r => r.customer_username)).size, // Count of matched customers we found orders for
