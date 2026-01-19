@@ -135,11 +135,13 @@ const exampleResponse = {
 };
 
 console.log('=== RUNNING TEST WITH EXAMPLE DATA ===');
-const { processedRecords, totalOrders } = processCustomerData(exampleResponse.customers);
+const { processedRecords, totalOrders, stats } = processCustomerData(exampleResponse.customers);
 
 console.log('\n=== TEST SUMMARY ===');
 console.log(`Total Orders Processed: ${totalOrders}`);
 console.log(`Processed Records: ${processedRecords.length}`);
+console.log(`Customers with Zero Balance: ${stats.customersWithZeroBalance}`);
+console.log(`Customers with Balance: ${stats.customersWithBalance}`);
 
 // Check for discrepancies
 const discrepancies = processedRecords.filter(r => r.discrepancy_detected);
@@ -151,3 +153,4 @@ if (discrepancies.length > 0) {
 } else {
     console.log('\n✅ No discrepancies found.');
 }
+
