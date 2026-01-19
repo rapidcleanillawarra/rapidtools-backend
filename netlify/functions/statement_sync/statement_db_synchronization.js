@@ -194,8 +194,13 @@ const handler = async (event) => {
         // Step 1: Call check_existing_customer_statement API to get customer data
         console.log('Step 1: Fetching customer statement data...');
 
+        // Default to local function URL if env var is not set. 
+        // In production on Netlify, process.env.URL is available.
+        const baseUrl = process.env.URL || 'http://localhost:8888';
         const checkStatementUrl = process.env.CHECK_STATEMENT_URL ||
-            'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+            `${baseUrl}/.netlify/functions/check_existing_customer_statement`;
+
+        console.log(`Using Check Statement URL: ${checkStatementUrl}`);
 
         const response = await fetch(checkStatementUrl, {
             method: 'POST',
