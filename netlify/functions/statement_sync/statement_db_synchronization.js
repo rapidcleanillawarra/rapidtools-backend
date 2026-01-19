@@ -1,6 +1,120 @@
 const { supabase } = require('../utils/supabaseInit');
 
 /**
+ * Process customer statement data and prepare DB records
+ * Extracted for easier testing
+ */
+const processCustomerData = (customers) => {
+    const processedRecords = [];
+    let totalOrders = 0;
+
+    customers.forEach(customer => {
+        const username = customer.customer_username;
+        const email = customer.email || '';
+        const companyName = customer.company_name || '';
+
+        // If no orders, we might still want to track the customer, but for now filtering as per original logic
+        if (!customer.orders || customer.orders.length === 0) {
+            console.log(`Skipping ${username} - no orders`);
+            return;
+        }
+
+        // Process each order for this customer
+        customer.orders.forEach(order => {
+            totalOrders++;
+
+            const grandTotal = parseFloat(order.grandTotal || 0);
+            const paymentsArray = order.payments || [];
+
+            // Calculate payments sum
+            const paymentsSum = paymentsArray.reduce((sum, payment) => {
+                return sum + parseFloat(payment.Amount || 0);
+            }, 0);
+
+            // Calculate outstanding amount: Grand Total - Payments
+            const calculatedOutstandingFn = grandTotal - paymentsSum;
+
+            // Get provided outstanding amount from API if available
+            const providedOutstanding = order.outstandingAmount !== undefined ? parseFloat(order.outstandingAmount) : null;
+
+            // Use provided outstanding amount if available, otherwise calculated
+            // But checking for discrepancy is important
+            let outstandingAmount = calculatedOutstandingFn;
+            let discrepancy = false;
+
+            if (providedOutstanding !== null) {
+                // Check for discrepancy (allow small floating point diff)
+                if (Math.abs(calculatedOutstandingFn - providedOutstanding) > 0.01) {
+                    console.warn(`⚠️ DISCREPANCY for Order ${order.id} (${username}):`);
+                    console.warn(`   Calculated: ${calculatedOutstandingFn.toFixed(2)}`);
+                    console.warn(`   Provided:   ${providedOutstanding.toFixed(2)}`);
+                    discrepancy = true;
+                }
+                // Trust the API provided value if available? 
+                // Usually safe to trust the source of truth, but good to know if math is off
+                outstandingAmount = providedOutstanding;
+            }
+
+            // Determine payment status
+            let paymentStatus;
+
+            // Logic based on amounts
+            if (grandTotal === 0) {
+                paymentStatus = "free";
+            } else if (Math.abs(outstandingAmount) < 0.01) {
+                paymentStatus = "paid";
+            } else if (outstandingAmount < 0) {
+                if (paymentsSum > grandTotal) {
+                    paymentStatus = "overpaid";
+                } else {
+                    paymentStatus = "unknown_error";
+                }
+            } else if (paymentsSum > 0) {
+                paymentStatus = "partial";
+            } else {
+                paymentStatus = "unpaid";
+            }
+
+            // Override status if overpaid check is needed and not covered by above simple math
+            if (paymentsSum > grandTotal && Math.abs(outstandingAmount) > 0.01) {
+                paymentStatus = "overpaid";
+            }
+
+            // Prepare database record
+            const dbRecord = {
+                order_id: order.id,
+                customer_username: username,
+                email: email,
+                company_name: companyName,
+                grand_total: grandTotal,
+                payments_sum: paymentsSum,
+                outstanding_amount: outstandingAmount,
+                payment_status: paymentStatus,
+                date_payment_due: order.datePaymentDue || null,
+                is_past_due: order.isPastDue || false,
+                last_updated: new Date().toISOString(),
+                discrepancy_detected: discrepancy
+            };
+
+            processedRecords.push(dbRecord);
+
+            // Log each record
+            console.log(`\n--- Order ${order.id} (${username}) ---`);
+            console.log(`Grand Total: $${grandTotal.toFixed(2)}`);
+            console.log(`Payments: $${paymentsSum.toFixed(2)} (${paymentsArray.length} payment(s))`);
+            console.log(`Outstanding: $${outstandingAmount.toFixed(2)}`);
+            if (discrepancy) {
+                console.log(`⚠️ Calculated Outstanding: $${calculatedOutstandingFn.toFixed(2)} (Diff: ${(calculatedOutstandingFn - outstandingAmount).toFixed(2)})`);
+            }
+            console.log(`Status: ${paymentStatus}`);
+            console.log(`Past Due: ${order.isPastDue ? 'YES ⚠️' : 'NO'}`);
+        });
+    });
+
+    return { processedRecords, totalOrders };
+};
+
+/**
  * Statement DB Synchronization - Netlify Function
  * 
  * This function:
@@ -10,7 +124,6 @@ const { supabase } = require('../utils/supabaseInit');
  * 4. Prepares records for the statement_of_accounts table
  * 5. Logs calculations to console (database save currently disabled)
  */
-
 const handler = async (event) => {
     console.log('=== Statement DB Synchronization Function Started ===');
     console.log('Timestamp:', new Date().toISOString());
@@ -76,74 +189,7 @@ const handler = async (event) => {
         // Step 2: Process each customer's orders
         console.log('Step 2: Processing customer orders...');
 
-        const processedRecords = [];
-        let totalOrders = 0;
-
-        statementData.customers.forEach(customer => {
-            const username = customer.customer_username;
-            const email = customer.email || '';
-            const companyName = customer.company_name || '';
-
-            if (!customer.orders || customer.orders.length === 0) {
-                console.log(`Skipping ${username} - no orders`);
-                return;
-            }
-
-            // Process each order for this customer
-            customer.orders.forEach(order => {
-                totalOrders++;
-
-                const grandTotal = parseFloat(order.grandTotal || 0);
-                const paymentsArray = order.payments || [];
-
-                // Calculate payments sum
-                const paymentsSum = paymentsArray.reduce((sum, payment) => {
-                    return sum + parseFloat(payment.Amount || 0);
-                }, 0);
-
-                // Calculate outstanding amount: Grand Total - Payments
-                const outstandingAmount = grandTotal - paymentsSum;
-
-                // Determine payment status
-                let paymentStatus;
-                if (grandTotal === 0) {
-                    paymentStatus = "free";
-                } else if (Math.abs(paymentsSum - grandTotal) < 0.01) {
-                    paymentStatus = "paid";
-                } else if (paymentsSum > grandTotal) {
-                    paymentStatus = "overpaid";
-                } else if (paymentsSum > 0) {
-                    paymentStatus = "partial";
-                } else {
-                    paymentStatus = "unpaid";
-                }
-
-                // Prepare database record
-                const dbRecord = {
-                    order_id: order.id,
-                    customer_username: username,
-                    email: email,
-                    company_name: companyName,
-                    grand_total: grandTotal,
-                    payments_sum: paymentsSum,
-                    outstanding_amount: outstandingAmount,
-                    payment_status: paymentStatus,
-                    date_payment_due: order.datePaymentDue || null,
-                    is_past_due: order.isPastDue || false,
-                    last_updated: new Date().toISOString()
-                };
-
-                processedRecords.push(dbRecord);
-
-                // Log each record
-                console.log(`\n--- Order ${order.id} (${username}) ---`);
-                console.log(`Grand Total: $${grandTotal.toFixed(2)}`);
-                console.log(`Payments: $${paymentsSum.toFixed(2)} (${paymentsArray.length} payment(s))`);
-                console.log(`Outstanding: $${outstandingAmount.toFixed(2)}`);
-                console.log(`Status: ${paymentStatus}`);
-                console.log(`Past Due: ${order.isPastDue ? 'YES ⚠️' : 'NO'}`);
-            });
-        });
+        const { processedRecords, totalOrders } = processCustomerData(statementData.customers);
 
         console.log(`\n=== PROCESSING COMPLETE ===`);
         console.log(`Total Customers: ${statementData.customers.length}`);
@@ -227,4 +273,4 @@ const handler = async (event) => {
     }
 };
 
-module.exports = { handler };
+module.exports = { handler, processCustomerData };
