@@ -91,24 +91,6 @@ const processCustomerData = (customers) => {
                     paymentStatus = "overpaid";
                 }
 
-                // Prepare database record
-                const dbRecord = {
-                    order_id: order.id,
-                    customer_username: username,
-                    email: email,
-                    company_name: companyName,
-                    grand_total: grandTotal,
-                    payments_sum: paymentsSum,
-                    outstanding_amount: outstandingAmount,
-                    payment_status: paymentStatus,
-                    date_payment_due: order.datePaymentDue || null,
-                    is_past_due: order.isPastDue || false,
-                    last_updated: new Date().toISOString(),
-                    discrepancy_detected: discrepancy
-                };
-
-                processedRecords.push(dbRecord);
-
                 // Log each record
                 console.log(`\n--- Order ${order.id} (${username}) ---`);
                 console.log(`Grand Total: $${grandTotal.toFixed(2)}`);
@@ -124,6 +106,16 @@ const processCustomerData = (customers) => {
             console.log(`Skipping ${username} - no orders`);
             // If no orders, balance is 0
         }
+
+        // Prepare database record for this customer with accumulated balance
+        const dbRecord = {
+            customer_username: username,
+            exists_in_statements_list: true,
+            last_check: new Date().toISOString(),
+            last_invoice_balance: customerTotalOutstanding
+        };
+
+        processedRecords.push(dbRecord);
 
         // Update counts
         // We consider a customer "with balance" if total outstanding > 0.01 (or < -0.01)
@@ -277,16 +269,56 @@ const handler = async (event) => {
 
             console.log('Step 3: Saving records to database...');
 
+            // Get all existing customer usernames from the database
+            const { data: existingCustomers, error: fetchError } = await supabase
+                .from('statement_of_accounts')
+                .select('customer_username');
+
+            if (fetchError) {
+                throw new Error(`Failed to fetch existing customers: ${fetchError.message}`);
+            }
+
+            // Extract unique customer usernames from API response
+            const apiCustomerUsernames = new Set(processedRecords.map(r => r.customer_username));
+            const dbCustomerUsernames = new Set(existingCustomers.map(c => c.customer_username));
+
+            // Find customers that exist in DB but not in API response
+            const customersToMarkInactive = [...dbCustomerUsernames].filter(username => !apiCustomerUsernames.has(username));
+
+            console.log(`API customers to process: ${apiCustomerUsernames.size}`);
+            console.log(`Existing DB customers: ${dbCustomerUsernames.size}`);
+            console.log(`Customers to mark inactive: ${customersToMarkInactive.length}`);
+
+            // Update customers not in API response to exists_in_statements_list = false
+            if (customersToMarkInactive.length > 0) {
+                const { error: updateError } = await supabase
+                    .from('statement_of_accounts')
+                    .update({
+                        exists_in_statements_list: false,
+                        last_check: new Date().toISOString()
+                    })
+                    .in('customer_username', customersToMarkInactive);
+
+                if (updateError) {
+                    throw new Error(`Failed to update inactive customers: ${updateError.message}`);
+                }
+
+                console.log(`Marked ${customersToMarkInactive.length} customers as inactive`);
+            }
+
+            // Upsert the processed records (API customers)
             const { data, error } = await supabase
                 .from('statement_of_accounts')
-                .insert(processedRecords)
+                .upsert(processedRecords, {
+                    onConflict: 'customer_username'
+                })
                 .select();
 
             if (error) {
-                throw new Error(`Failed to insert records: ${error.message}`);
+                throw new Error(`Failed to upsert records: ${error.message}`);
             }
 
-            console.log(`Successfully saved ${data.length} records to database`);
+            console.log(`Successfully upserted ${data.length} records to database`);
 
             return {
                 statusCode: 200,
@@ -302,7 +334,8 @@ const handler = async (event) => {
                         orders_processed: totalOrders,
                         records_saved: data.length,
                         customers_with_zero_balance: stats.customersWithZeroBalance,
-                        customers_with_balance: stats.customersWithBalance
+                        customers_with_balance: stats.customersWithBalance,
+                        customers_marked_inactive: customersToMarkInactive.length
                     },
                     timestamp: new Date().toISOString()
                 })
