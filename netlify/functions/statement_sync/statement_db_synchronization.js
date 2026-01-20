@@ -6,6 +6,7 @@ const { supabase } = require('../utils/supabaseInit');
  */
 const processCustomerData = (customers) => {
     const processedRecords = [];
+    const zeroBalanceCustomers = [];
     let totalOrders = 0;
     // Track customer balance stats
     let customersWithZeroBalance = 0;
@@ -107,15 +108,22 @@ const processCustomerData = (customers) => {
             // If no orders, balance is 0
         }
 
-        // Prepare database record for this customer with accumulated balance
-        const dbRecord = {
-            customer_username: username,
-            exists_in_statements_list: true,
-            last_check: new Date().toISOString(),
-            last_invoice_balance: customerTotalOutstanding
-        };
+        // Only save customers with non-zero balances to the database
+        if (Math.abs(customerTotalOutstanding) > 0.01) {
+            // Prepare database record for this customer with accumulated balance
+            const dbRecord = {
+                customer_username: username,
+                exists_in_statements_list: true,
+                last_check: new Date().toISOString(),
+                last_invoice_balance: customerTotalOutstanding
+            };
 
-        processedRecords.push(dbRecord);
+            processedRecords.push(dbRecord);
+        } else {
+            console.log(`Skipping ${username} - zero balance ($${customerTotalOutstanding.toFixed(2)})`);
+            // Track customers with zero balance for marking as inactive
+            zeroBalanceCustomers.push(username);
+        }
 
         // Update counts
         // We consider a customer "with balance" if total outstanding > 0.01 (or < -0.01)
@@ -129,6 +137,7 @@ const processCustomerData = (customers) => {
 
     return {
         processedRecords,
+        zeroBalanceCustomers,
         totalOrders,
         stats: {
             customersWithZeroBalance,
@@ -249,7 +258,7 @@ const handler = async (event) => {
         // Step 2: Process each customer's orders
         console.log('Step 2: Processing customer orders...');
 
-        const { processedRecords, totalOrders, stats } = processCustomerData(customersToProcess);
+        const { processedRecords, zeroBalanceCustomers, totalOrders, stats } = processCustomerData(customersToProcess);
 
         console.log(`\n=== PROCESSING COMPLETE ===`);
         console.log(`Total Customers Received: ${statementData.customers.length}`);
@@ -282,10 +291,12 @@ const handler = async (event) => {
             const apiCustomerUsernames = new Set(processedRecords.map(r => r.customer_username));
             const dbCustomerUsernames = new Set(existingCustomers.map(c => c.customer_username));
 
-            // Find customers that exist in DB but not in API response
-            const customersToMarkInactive = [...dbCustomerUsernames].filter(username => !apiCustomerUsernames.has(username));
+            // Find customers that exist in DB but not in API response OR have zero balance
+            const customersNotInApi = [...dbCustomerUsernames].filter(username => !apiCustomerUsernames.has(username));
+            const customersToMarkInactive = [...new Set([...customersNotInApi, ...zeroBalanceCustomers])];
 
             console.log(`API customers to process: ${apiCustomerUsernames.size}`);
+            console.log(`Zero balance customers: ${zeroBalanceCustomers.length}`);
             console.log(`Existing DB customers: ${dbCustomerUsernames.size}`);
             console.log(`Customers to mark inactive: ${customersToMarkInactive.length}`);
 
@@ -335,7 +346,8 @@ const handler = async (event) => {
                         records_saved: data.length,
                         customers_with_zero_balance: stats.customersWithZeroBalance,
                         customers_with_balance: stats.customersWithBalance,
-                        customers_marked_inactive: customersToMarkInactive.length
+                        customers_marked_inactive: customersToMarkInactive.length,
+                        zero_balance_customers_marked_inactive: zeroBalanceCustomers.length
                     },
                     timestamp: new Date().toISOString()
                 })
