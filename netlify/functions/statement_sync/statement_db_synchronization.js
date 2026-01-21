@@ -331,20 +331,6 @@ const handler = async (event) => {
 
             console.log(`Successfully upserted ${data.length} records to database`);
 
-            // Save the raw API response to statement_records table
-            const { error: statementRecordError } = await supabase
-                .from('statement_records')
-                .insert({
-                    data: statementData
-                });
-
-            if (statementRecordError) {
-                console.error('Failed to save statement record:', statementRecordError.message);
-                // Don't throw error here, just log it - the main operation succeeded
-            } else {
-                console.log('Successfully saved raw API response to statement_records table');
-            }
-
             return {
                 statusCode: 200,
                 headers,
