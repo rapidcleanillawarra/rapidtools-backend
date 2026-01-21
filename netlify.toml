@@ -8,7 +8,8 @@
 
 # Function settings
 [functions]
-  # Increase timeout to 26 seconds (requires paid plan, default is 10s on free tier)
+  # Increase timeout to 900 seconds (15 minutes) for long-running operations
+  timeout = 900
   # node_bundler = "esbuild"
 
 # Redirect all traffic to index.html for SPA-like behavior

@@ -497,7 +497,7 @@ const handler = async (event) => {
         const tomorrowSydney = new Date(todaySydneyStart);
         tomorrowSydney.setDate(tomorrowSydney.getDate() + 1);
 
-        const { data: matchingCustomers, error: queryError } = await supabase
+        const { data: matchingCustomersData, error: queryError } = await supabase
             .from('statement_of_accounts')
             .select('*')
             .eq('exists_in_statements_list', true)
@@ -508,7 +508,7 @@ const handler = async (event) => {
             throw new Error(`Failed to query statement_of_accounts: ${queryError.message}`);
         }
 
-        console.log(`Found ${matchingCustomers.length} customers to process`);
+        console.log(`Found ${matchingCustomersData.length} customers to process`);
 
         // Parse request body for joeven_test parameter
         let requestBody = {};
@@ -519,6 +519,7 @@ const handler = async (event) => {
         }
 
         // Check if joeven_test is true - if so, limit to 20 records
+        let matchingCustomers = matchingCustomersData;
         if (requestBody.joeven_test === true) {
             console.log('joeven_test is true - limiting processing to 20 records');
             matchingCustomers = matchingCustomers.slice(0, 20);
