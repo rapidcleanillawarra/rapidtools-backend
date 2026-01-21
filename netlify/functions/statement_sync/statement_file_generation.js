@@ -1,5 +1,11 @@
 const { supabase } = require('../utils/supabaseInit');
 
+// Cache for statement_records data (persists across warm invocations)
+let statementRecordsCache = {
+    data: null,
+    cacheDate: null  // Sydney date string "YYYY-MM-DD"
+};
+
 /**
  * Get today's date in Australia/Sydney timezone normalized to start of day
  */
@@ -30,6 +36,53 @@ const formatDate = (dateString) => {
         month: 'short',
         day: 'numeric'
     });
+};
+
+/**
+ * Get statement records with day-level caching
+ */
+const getStatementRecords = async () => {
+    // Get today's date in Sydney timezone as "YYYY-MM-DD"
+    const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+    
+    // Check if cache is valid for today
+    if (statementRecordsCache.data && statementRecordsCache.cacheDate === todayDateStr) {
+        console.log('Using cached statement_records data');
+        return statementRecordsCache.data;
+    }
+    
+    // Fetch fresh data
+    console.log('Fetching fresh statement_records data from database...');
+    const { data: latestRecord, error: recordError } = await supabase
+        .from('statement_records')
+        .select('data, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (recordError) {
+        throw new Error(`Failed to fetch statement_records: ${recordError.message}`);
+    }
+
+    if (!latestRecord) {
+        throw new Error('No statement records found');
+    }
+
+    // Validate record is from today (Sydney timezone)
+    const recordDateStr = new Date(latestRecord.created_at).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+    
+    if (recordDateStr !== todayDateStr) {
+        throw new Error(`Statement records data is not up to date. Latest record created at: ${latestRecord.created_at} (Sydney time: ${recordDateStr}). Today is ${todayDateStr}. Please run statement synchronization first.`);
+    }
+
+    // Update cache
+    statementRecordsCache = {
+        data: latestRecord,
+        cacheDate: todayDateStr
+    };
+    
+    console.log('Statement records cached successfully');
+    return latestRecord;
 };
 
 /**
@@ -455,32 +508,10 @@ const handler = async (event) => {
     }
 
     try {
-        // Step 1: Fetch and validate statement_records
+        // Step 1: Fetch and validate statement_records (with caching)
         console.log('Step 1: Fetching latest statement_records...');
 
-        const { data: latestRecord, error: recordError } = await supabase
-            .from('statement_records')
-            .select('data, created_at')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (recordError) {
-            throw new Error(`Failed to fetch statement_records: ${recordError.message}`);
-        }
-
-        if (!latestRecord) {
-            throw new Error('No statement records found');
-        }
-
-        // Validate created_at is today in Sydney timezone
-        const todaySydney = getTodaySydney();
-        const recordDateSydney = new Date(latestRecord.created_at.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-        recordDateSydney.setHours(0, 0, 0, 0);
-
-        if (recordDateSydney.getTime() !== todaySydney.getTime()) {
-            throw new Error(`Statement records data is not up to date. Latest record created at: ${latestRecord.created_at} (Sydney time). Please run statement synchronization first.`);
-        }
+        const latestRecord = await getStatementRecords();
 
         console.log('Statement records validated - data is up to date');
 
