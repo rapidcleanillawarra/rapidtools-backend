@@ -510,6 +510,23 @@ const handler = async (event) => {
 
         console.log(`Found ${matchingCustomers.length} customers to process`);
 
+        // Parse request body for joeven_test parameter
+        let requestBody = {};
+        try {
+            requestBody = event.body ? JSON.parse(event.body) : {};
+        } catch (parseError) {
+            console.warn('Failed to parse request body, proceeding without joeven_test parameter');
+        }
+
+        // Check if joeven_test is true - if so, limit to 20 records
+        if (requestBody.joeven_test === true) {
+            console.log('joeven_test is true - limiting processing to 20 records');
+            matchingCustomers = matchingCustomers.slice(0, 20);
+            console.log(`Limited to ${matchingCustomers.length} customers for testing`);
+        } else {
+            console.log('joeven_test is false or not present - processing all records');
+        }
+
         if (matchingCustomers.length === 0) {
             return {
                 statusCode: 200,
