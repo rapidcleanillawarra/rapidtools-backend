@@ -231,7 +231,8 @@ const handler = async (event) => {
                 inserts.push({
                     customer_username: username,
                     exists_in_statements_list: true,
-                    last_check: timestamp
+                    last_check: timestamp,
+                    last_invoice_balance: 0
                 });
             }
         });
