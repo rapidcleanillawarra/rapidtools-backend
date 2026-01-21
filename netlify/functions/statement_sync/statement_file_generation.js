@@ -490,123 +490,141 @@ const handler = async (event) => {
             throw new Error('Invalid statement records data structure');
         }
 
-        // Step 2: Query statement_of_accounts for matching records
-        console.log('Step 2: Querying statement_of_accounts...');
+        // Step 2: Query statement_of_accounts for ONE unprocessed customer
+        console.log('Step 2: Querying statement_of_accounts for next unprocessed customer...');
 
         const todaySydneyStart = getTodaySydney();
         const tomorrowSydney = new Date(todaySydneyStart);
         tomorrowSydney.setDate(tomorrowSydney.getDate() + 1);
 
-        const { data: matchingCustomersData, error: queryError } = await supabase
-            .from('statement_of_accounts')
-            .select('*')
-            .eq('exists_in_statements_list', true)
-            .gte('last_check', todaySydneyStart.toISOString())
-            .lt('last_check', tomorrowSydney.toISOString());
-
-        if (queryError) {
-            throw new Error(`Failed to query statement_of_accounts: ${queryError.message}`);
-        }
-
-        console.log(`Found ${matchingCustomersData.length} customers to process`);
-
-        // Parse request body for joeven_test parameter
+        // Parse request body for parameters
         let requestBody = {};
         try {
             requestBody = event.body ? JSON.parse(event.body) : {};
         } catch (parseError) {
-            console.warn('Failed to parse request body, proceeding without joeven_test parameter');
+            console.warn('Failed to parse request body, proceeding without parameters');
         }
 
-        // Check if joeven_test is true - if so, limit to 20 records
-        let matchingCustomers = matchingCustomersData;
-        if (requestBody.joeven_test === true) {
-            console.log('joeven_test is true - limiting processing to 20 records');
-            matchingCustomers = matchingCustomers.slice(0, 20);
-            console.log(`Limited to ${matchingCustomers.length} customers for testing`);
-        } else {
-            console.log('joeven_test is false or not present - processing all records');
+        // Query for only 1 customer that hasn't been processed today
+        const { data: customerToProcess, error: queryError } = await supabase
+            .from('statement_of_accounts')
+            .select('*')
+            .eq('exists_in_statements_list', true)
+            .gte('last_check', todaySydneyStart.toISOString())
+            .lt('last_check', tomorrowSydney.toISOString())
+            .or('last_file_generation.is.null,last_file_generation.lt.' + todaySydneyStart.toISOString())
+            .limit(1)
+            .single();
+
+        if (queryError) {
+            // If no customer found, check if there are any remaining customers
+            if (queryError.code === 'PGRST116') {
+                // Check count of remaining unprocessed customers
+                const { count: remainingCount } = await supabase
+                    .from('statement_of_accounts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('exists_in_statements_list', true)
+                    .gte('last_check', todaySydneyStart.toISOString())
+                    .lt('last_check', tomorrowSydney.toISOString())
+                    .or('last_file_generation.is.null,last_file_generation.lt.' + todaySydneyStart.toISOString());
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        message: 'No unprocessed customers found',
+                        has_more: false,
+                        remaining_count: remainingCount || 0,
+                        stats: {
+                            customers_processed: 0,
+                            successful_generations: 0,
+                            failed_generations: 0
+                        },
+                        timestamp: new Date().toISOString()
+                    })
+                };
+            }
+            throw new Error(`Failed to query statement_of_accounts: ${queryError.message}`);
         }
 
-        if (matchingCustomers.length === 0) {
+        if (!customerToProcess) {
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
                     success: true,
                     message: 'No customers found matching criteria',
+                    has_more: false,
                     stats: {
                         customers_processed: 0,
                         successful_generations: 0,
-                        failed_generations: 0,
-                        batches_processed: 0
+                        failed_generations: 0
                     },
                     timestamp: new Date().toISOString()
                 })
             };
         }
 
-        // Step 3: Process customers in batches of 20
-        console.log('Step 3: Processing customers in batches...');
+        console.log(`Processing single customer: ${customerToProcess.customer_username}`);
 
-        const batchSize = 20;
-        const batches = [];
-        for (let i = 0; i < matchingCustomers.length; i += batchSize) {
-            batches.push(matchingCustomers.slice(i, i + batchSize));
+        // Step 3: Process the single customer
+        console.log('Step 3: Processing single customer...');
+        const result = await processCustomer(customerToProcess, statementData.customers);
+
+        // Check if there are more customers remaining
+        const { count: remainingCount } = await supabase
+            .from('statement_of_accounts')
+            .select('*', { count: 'exact', head: true })
+            .eq('exists_in_statements_list', true)
+            .gte('last_check', todaySydneyStart.toISOString())
+            .lt('last_check', tomorrowSydney.toISOString())
+            .or('last_file_generation.is.null,last_file_generation.lt.' + todaySydneyStart.toISOString());
+
+        const hasMore = (remainingCount || 0) > 0;
+
+        console.log(`=== Processing Complete ===`);
+        console.log(`Customer processed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        console.log(`Remaining customers: ${remainingCount || 0}`);
+
+        // If auto_continue is enabled and there are more customers, trigger next iteration
+        if (requestBody.auto_continue === true && hasMore) {
+            console.log('Auto-continue enabled: Triggering next iteration...');
+            // Get the function URL from the event
+            const functionUrl = event.headers['x-forwarded-proto']
+                ? `${event.headers['x-forwarded-proto']}://${event.headers.host}/.netlify/functions/statement_file_generation`
+                : `https://${event.headers.host}/.netlify/functions/statement_file_generation`;
+
+            // Add delay before triggering next call to avoid rate limiting
+            setTimeout(() => {
+                fetch(functionUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ auto_continue: true })
+                }).catch(err => {
+                    console.error('Failed to trigger next iteration:', err.message);
+                });
+            }, 2000); // 2 second delay
         }
-
-        console.log(`Processing ${batches.length} batches (${matchingCustomers.length} customers total)`);
-
-        let totalSuccessful = 0;
-        let totalFailed = 0;
-        const results = [];
-
-        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-            const batch = batches[batchIndex];
-            console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} customers)...`);
-
-            // Process batch concurrently
-            const batchPromises = batch.map(customer =>
-                processCustomer(customer, statementData.customers)
-            );
-
-            const batchResults = await Promise.allSettled(batchPromises);
-
-            // Count results
-            batchResults.forEach(result => {
-                if (result.status === 'fulfilled' && result.value.success) {
-                    totalSuccessful++;
-                    results.push(result.value);
-                } else {
-                    totalFailed++;
-                    results.push({
-                        success: false,
-                        customer_username: result.status === 'fulfilled' ? result.value.customer_username : 'unknown',
-                        error: result.status === 'fulfilled' ? result.value.error : result.reason.message
-                    });
-                }
-            });
-
-            console.log(`Batch ${batchIndex + 1} completed: ${batchResults.filter(r => r.status === 'fulfilled' && r.value.success).length} successful, ${batchResults.filter(r => !(r.status === 'fulfilled' && r.value.success)).length} failed`);
-        }
-
-        console.log('=== Processing Complete ===');
-        console.log(`Total successful: ${totalSuccessful}`);
-        console.log(`Total failed: ${totalFailed}`);
 
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({
                 success: true,
-                message: `File generation completed: ${totalSuccessful} successful, ${totalFailed} failed`,
+                message: result.success
+                    ? `File generation completed for ${customerToProcess.customer_username}`
+                    : `File generation failed for ${customerToProcess.customer_username}`,
+                has_more: hasMore,
+                remaining_count: remainingCount || 0,
                 stats: {
-                    customers_found: matchingCustomers.length,
-                    batches_processed: batches.length,
-                    successful_generations: totalSuccessful,
-                    failed_generations: totalFailed
+                    customers_processed: 1,
+                    successful_generations: result.success ? 1 : 0,
+                    failed_generations: result.success ? 0 : 1
                 },
-                results: results,
+                result: result,
                 timestamp: new Date().toISOString()
             })
         };
