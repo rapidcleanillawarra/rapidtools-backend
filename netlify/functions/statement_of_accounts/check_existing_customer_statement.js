@@ -387,7 +387,6 @@ const handler = async (event) => {
 
         const promises = [];
         let updatedCount = 0;
-        let insertedCount = 0;
 
         // Execute updates
         if (updates.length > 0) {
@@ -402,55 +401,28 @@ const handler = async (event) => {
             console.log(`Updated ${updatedCount} records`);
         }
 
-        // Execute inserts
-        if (inserts.length > 0) {
-            const { error: insertError } = await supabase
-                .from('statement_of_accounts')
-                .insert(inserts);
+        // Execute inserts - REMOVED
 
-            if (insertError) {
-                throw new Error(`Failed to insert records: ${insertError.message}`);
-            }
-            insertedCount = inserts.length;
-            console.log(`Inserted ${insertedCount} records`);
-        }
+        // Step 7: Save complete response to customer_statement_responses table - REMOVED
 
-        // Step 7: Save complete response to customer_statement_responses table
-        console.log('Step 7: Saving complete response to customer_statement_responses table...');
-
-        const responseData = {
-            success: true,
-            message: 'Synchronization completed successfully',
-            stats: {
-                customer_api_usernames: filteredCustomers.length,
-                order_api_unique_username: uniqueCustomers,
-                matched_balances_count: matchedBalancesCount,
-                unmatched_balances_count: unmatchedBalancesCount,
-                usernames_with_unmatched_balances: usernamesWithUnmatchedBalances
-            },
-            customers: customerList,
-            timestamp
-        };
-
-        const { error: responseSaveError } = await supabase
-            .from('customer_statement_responses')
-            .insert({
-                data: responseData
-            });
-
-        if (responseSaveError) {
-            console.error('Failed to save response to customer_statement_responses:', responseSaveError);
-            // Don't throw error, just log it - we still want to return the response
-        } else {
-            console.log('Successfully saved response to customer_statement_responses table');
-        }
-
-        console.log('Synchronization completed successfully:', responseData.stats);
+        console.log('Synchronization completed successfully');
 
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(responseData)
+            body: JSON.stringify({
+                success: true,
+                message: 'Synchronization completed successfully',
+                stats: {
+                    customer_api_usernames: filteredCustomers.length,
+                    order_api_unique_username: uniqueCustomers,
+                    matched_balances_count: matchedBalancesCount,
+                    unmatched_balances_count: unmatchedBalancesCount,
+                    usernames_with_unmatched_balances: usernamesWithUnmatchedBalances
+                },
+                customers: customerList,
+                timestamp
+            })
         };
 
     } catch (error) {
