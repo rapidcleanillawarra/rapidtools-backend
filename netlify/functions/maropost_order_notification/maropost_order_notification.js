@@ -1,3 +1,203 @@
+// Helper function to escape HTML to prevent XSS
+const escapeHtml = (text) => {
+  if (!text) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+};
+
+// Generate HTML email template for dispatched orders
+const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'https://rapidclean.com/account') => {
+  // Extract order data
+  const order = orderDetails?.Order?.[0];
+  if (!order) {
+    return '<p>Order details not available.</p>';
+  }
+
+  // Get customer name (fallback to Username if name not available)
+  const firstName = order.BillFirstName || '';
+  const lastName = order.BillLastName || '';
+  const customerName = (firstName || lastName) 
+    ? `${firstName} ${lastName}`.trim() 
+    : (order.Username || 'Customer');
+
+  // Get order lines
+  const orderLines = order.OrderLine || [];
+
+  // Create a map of SKU to product image for quick lookup
+  const imageMap = {};
+  if (productImages?.Item) {
+    productImages.Item.forEach(item => {
+      if (item.SKU && item.preferredImage?.URL) {
+        imageMap[item.SKU] = item.preferredImage.URL;
+      }
+    });
+  }
+
+  // Generate table rows for dispatched items
+  let tableRows = '';
+  if (orderLines.length === 0) {
+    tableRows = `
+      <tr>
+        <td colspan="4" style="padding: 20px; text-align: center; color: #666;">
+          No items found in this order.
+        </td>
+      </tr>
+    `;
+  } else {
+    orderLines.forEach(line => {
+      const sku = line.SKU || '';
+      const productName = escapeHtml(line.ProductName || '');
+      const quantity = line.Quantity || line.Qty || 0;
+      const shippingMethod = escapeHtml(line.ShippingMethod || 'N/A');
+      const imageUrl = imageMap[sku] || '';
+      
+      // Format description: ProductName (SKU)
+      const description = sku 
+        ? `${productName} (${escapeHtml(sku)})`
+        : productName;
+
+      // Image cell - use placeholder if no image
+      const imageCell = imageUrl
+        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(productName)}" style="max-width: 80px; max-height: 80px; display: block;" />`
+        : '<span style="color: #999; font-size: 12px;">No image</span>';
+
+      tableRows += `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: center; vertical-align: middle;">
+            ${imageCell}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: center; vertical-align: middle;">
+            ${quantity}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; vertical-align: middle;">
+            ${description}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; vertical-align: middle;">
+            ${shippingMethod}
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  // Generate the HTML email
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Dispatched - RapidClean Illawarra</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #ffffff; color: #000000;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+          <!-- Salutation -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
+                Dear ${escapeHtml(customerName)},
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Thank you message -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
+                Thank you for shopping with RapidClean Illawarra.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Introductory paragraph -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
+                Below is a list of items that have been <strong style="background-color: #ffff00;">dispatched</strong> to your nominated shipping address. A tax invoice has also been attached to this email for your records.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Tracking information -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
+                To track the progress of this and other orders online please go to <a href="${escapeHtml(accountUrl)}" style="color: #800080; text-decoration: underline;">your account</a> and select the order you want to track.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Horizontal separator -->
+          <tr>
+            <td style="padding-bottom: 30px; border-bottom: 1px solid #ddd;"></td>
+          </tr>
+          
+          <!-- Dispatched items heading -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #000000;">
+                Items That Have Been <strong style="background-color: #ffff00;">Dispatched</strong>
+              </h2>
+            </td>
+          </tr>
+          
+          <!-- Items table -->
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #ddd;">
+                <!-- Table header -->
+                <thead>
+                  <tr style="background-color: #f5f5f5;">
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold; color: #000000;">
+                      Image
+                    </th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #000000;">
+                      Qty
+                    </th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold; color: #000000;">
+                      Description
+                    </th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold; color: #000000;">
+                      Ship Method Consignment #
+                    </th>
+                  </tr>
+                </thead>
+                <!-- Table body -->
+                <tbody>
+                  ${tableRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer note -->
+          <tr>
+            <td style="padding-top: 30px;">
+              <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
+                <strong>Please note:</strong> some items on your order may arrive separately if they are sent using different shipping methods.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  return html;
+};
+
 const handler = async (event) => {
   // Add CORS headers for production
   const headers = {
@@ -91,9 +291,14 @@ const handler = async (event) => {
             "ID",
             "Username",
             "Email",
+            "BillFirstName",
+            "BillLastName",
             "BillAddress",
             "ShipAddress",
             "OrderLine",
+            "OrderLine.SKU",
+            "OrderLine.Quantity",
+            "OrderLine.Qty",
             "OrderLine.ShippingMethod",
             "OrderLine.ProductName",
             "DatePlaced",
@@ -354,13 +559,20 @@ const handler = async (event) => {
       };
     }
 
-    // TODO: Add your dispatch processing logic here
-    // This could include:
-    // - Updating order status in database
-    // - Sending notifications to relevant parties
-    // - Triggering fulfillment processes
-    // - Logging dispatch events
-    // - Using orderDetails for enhanced processing
+    // Generate HTML email template for dispatch notifications
+    let htmlEmail = null;
+    if (orderDetails && payload.OrderStatus === 'Dispatch') {
+      try {
+        htmlEmail = generateDispatchEmailHTML(orderDetails, productImages);
+        console.log('HTML email template generated successfully');
+      } catch (htmlError) {
+        console.error('Failed to generate HTML email template:', {
+          error: htmlError.message,
+          stack: htmlError.stack
+        });
+        // Continue processing even if HTML generation fails
+      }
+    }
 
     const timestamp_utc = new Date().toISOString();
 
@@ -411,7 +623,8 @@ const handler = async (event) => {
       related_backorders_fetched: relatedBackorders !== null,
       related_backorders: relatedBackorders,
       product_images_fetched: productImages !== null,
-      product_images: productImages
+      product_images: productImages,
+      html_email: htmlEmail
     };
 
     return {
