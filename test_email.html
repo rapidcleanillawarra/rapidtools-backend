@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Email HTML Output</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #result { margin-top: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 4px; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ddd; }
+        .input-group { margin: 10px 0; }
+        label { display: inline-block; width: 120px; }
+        input { padding: 5px; border: 1px solid #ddd; border-radius: 3px; }
+        select { padding: 5px; border: 1px solid #ddd; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Test Maropost Order Notification HTML</h1>
+    <p>Configure your test parameters and click the button to see the HTML email output:</p>
+
+    <div class="input-group">
+        <label for="orderId">Order ID:</label>
+        <input type="text" id="orderId" value="26-0011994" placeholder="e.g. 26-0011994">
+    </div>
+
+    <button onclick="testEndpoint()">Test Email HTML Output</button>
+
+    <div id="result">
+        <p>Click the button to see the HTML email template...</p>
+    </div>
+
+    <script>
+        async function testEndpoint() {
+            const resultDiv = document.getElementById('result');
+            const orderId = document.getElementById('orderId').value.trim();
+
+            try {
+                resultDiv.innerHTML = '<p>Loading...</p>';
+
+                const requestBody = {
+                    joeven_test: true,
+                    order_id: orderId || undefined
+                };
+
+                const response = await fetch('http://localhost:8888/.netlify/functions/maropost_order_notification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok) {
+                    const html = await response.text();
+                    resultDiv.innerHTML = `
+                        <h3>HTML Email Output (Order ID: ${orderId}):</h3>
+                        <iframe srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>
+                        <br><br>
+                        <button onclick="downloadHTML('${html.replace(/"/g, '&quot;').replace(/\n/g, '\\n')}')">Download HTML</button>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p>Error: ${response.status} ${response.statusText}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+
+        function downloadHTML(html) {
+            const blob = new Blob([html.replace(/\\n/g, '\n').replace(/&quot;/g, '"')], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'email_template.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

@@ -254,11 +254,11 @@ const handler = async (event) => {
     if (payload.joeven_test === true) {
       console.log('Test payload detected, using sample dispatch data');
       payload = {
-        "CurrentTime": "2026-01-22 04:16:01",
-        "EventID": "15846",
-        "EventType": "Order",
-        "OrderID": "26-0011970",
-        "OrderStatus": "Dispatched"
+        CurrentTime: "2026-01-22 04:16:01",
+        EventID: 15846,
+        EventType: "Order",
+        OrderID: payload.order_id || "26-0011994", // Allow custom order ID
+        OrderStatus: payload.order_status || "Dispatched" // Allow custom order status
       };
     }
 
@@ -538,8 +538,8 @@ const handler = async (event) => {
       // Continue processing even if image fetch fails
     }
 
-    // Check if OrderStatus is "Dispatch" - only process dispatch notifications
-    if (payload.OrderStatus !== 'Dispatch') {
+    // Check if OrderStatus is "Dispatch" - only process dispatch notifications (unless testing)
+    if (payload.OrderStatus !== 'Dispatch' && !payload.joeven_test) {
       return {
         statusCode: 200,
         headers,
@@ -559,9 +559,9 @@ const handler = async (event) => {
       };
     }
 
-    // Generate HTML email template for dispatch notifications
+    // Generate HTML email template for dispatch notifications (or when testing)
     let htmlEmail = null;
-    if (orderDetails && payload.OrderStatus === 'Dispatch') {
+    if (orderDetails && (payload.OrderStatus === 'Dispatch' || payload.joeven_test)) {
       try {
         htmlEmail = generateDispatchEmailHTML(orderDetails, productImages);
         console.log('HTML email template generated successfully');
@@ -609,28 +609,71 @@ const handler = async (event) => {
       // Don't throw the error - continue with the response
     }
 
-    // Prepare response data with order details
-    const responseData = {
-      message: 'Dispatch order notification processed successfully',
-      order_id: payload.OrderID,
-      order_status: payload.OrderStatus,
-      event_id: payload.EventID,
-      current_time: payload.CurrentTime,
-      processed_at: timestamp_utc,
-      processed: true,
-      order_details_fetched: orderDetails !== null,
-      order_details: orderDetails,
-      related_backorders_fetched: relatedBackorders !== null,
-      related_backorders: relatedBackorders,
-      product_images_fetched: productImages !== null,
-      product_images: productImages,
-      html_email: htmlEmail
-    };
+    // Return HTML response if HTML was generated, otherwise return a simple HTML message
+    if (htmlEmail) {
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'text/html'
+        },
+        body: htmlEmail,
+      };
+    }
+
+    // For test requests, return HTML even if generation failed
+    if (payload.joeven_test) {
+      const testHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Mode - Order Notification</title>
+</head>
+<body>
+  <h1>Test Mode - Order Notification</h1>
+  <p><strong>Order ID:</strong> ${escapeHtml(payload.OrderID || 'N/A')}</p>
+  <p><strong>Status:</strong> ${escapeHtml(payload.OrderStatus || 'N/A')}</p>
+  <p><strong>Event ID:</strong> ${escapeHtml(payload.EventID || 'N/A')}</p>
+  <p>HTML email generation ${htmlEmail ? 'succeeded' : 'failed'}. Order details ${orderDetails ? 'were' : 'were not'} fetched successfully.</p>
+  ${orderDetails ? `<details><summary>Order Details (JSON)</summary><pre>${JSON.stringify(orderDetails, null, 2)}</pre></details>` : ''}
+</body>
+</html>
+      `.trim();
+
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'text/html'
+        },
+        body: testHtml,
+      };
+    }
+
+    // Fallback HTML response if no HTML was generated
+    const fallbackHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Order Notification</title>
+</head>
+<body>
+  <h1>Order Notification Processed</h1>
+  <p>Order ID: ${escapeHtml(payload.OrderID || 'N/A')}</p>
+  <p>Status: ${escapeHtml(payload.OrderStatus || 'N/A')}</p>
+  <p>Event ID: ${escapeHtml(payload.EventID || 'N/A')}</p>
+  <p>HTML email could not be generated. Order details may not be available or there was an error.</p>
+</body>
+</html>
+    `.trim();
 
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify(responseData),
+      headers: {
+        ...headers,
+        'Content-Type': 'text/html'
+      },
+      body: fallbackHtml,
     };
 
   } catch (error) {
