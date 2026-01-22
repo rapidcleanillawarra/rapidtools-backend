@@ -26,6 +26,43 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
     ? `${firstName} ${lastName}`.trim() 
     : (order.Username || 'Customer');
 
+  // Get order details
+  const orderId = order.ID || '';
+  const orderStatus = order.OrderStatus || 'Dispatched';
+  const datePlaced = order.DatePlaced || '';
+  const dateInvoiced = order.DateInvoiced || '';
+  const shipAddress = order.ShipAddress || {};
+  
+  // Format dates
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const date = new Date(dateStr);
+      const day = date.getDate();
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  // Format shipping address
+  const formatAddress = (address) => {
+    if (!address || typeof address !== 'object') return '';
+    const parts = [];
+    if (address.Address1) parts.push(address.Address1);
+    if (address.Address2) parts.push(address.Address2);
+    if (address.City) parts.push(address.City);
+    if (address.State) parts.push(address.State);
+    if (address.Postcode) parts.push(address.Postcode);
+    if (address.Country) parts.push(address.Country);
+    return parts.join(', ');
+  };
+
+  const shipToAddress = formatAddress(shipAddress);
+  const shipToName = shipAddress?.Name || customerName;
+
   // Get order lines
   const orderLines = order.OrderLine || [];
 
@@ -122,7 +159,7 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
           <tr>
             <td style="padding-bottom: 20px;">
               <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
-                Below is a list of items that have been <strong style="background-color: #ffff00;">dispatched</strong> to your nominated shipping address. A tax invoice has also been attached to this email for your records.
+                Below is a list of items that have been <strong>dispatched</strong> to your nominated shipping address. A tax invoice has also been attached to this email for your records.
               </p>
             </td>
           </tr>
@@ -136,16 +173,11 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
             </td>
           </tr>
           
-          <!-- Horizontal separator -->
-          <tr>
-            <td style="padding-bottom: 30px; border-bottom: 1px solid #ddd;"></td>
-          </tr>
-          
           <!-- Dispatched items heading -->
           <tr>
             <td style="padding-bottom: 20px;">
               <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #000000;">
-                Items That Have Been <strong style="background-color: #ffff00;">Dispatched</strong>
+                Items That Have Been <strong>Dispatched</strong>
               </h2>
             </td>
           </tr>
@@ -179,12 +211,58 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
             </td>
           </tr>
           
-          <!-- Footer note -->
+          <!-- Please note message -->
           <tr>
-            <td style="padding-top: 30px;">
+            <td style="padding-top: 30px; padding-bottom: 20px;">
               <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #000000;">
                 <strong>Please note:</strong> some items on your order may arrive separately if they are sent using different shipping methods.
               </p>
+            </td>
+          </tr>
+          
+          <!-- Horizontal separator -->
+          <tr>
+            <td style="padding-bottom: 20px; border-bottom: 1px solid #ddd;"></td>
+          </tr>
+          
+          <!-- Shipping Tracking Section -->
+          <tr>
+            <td style="padding-bottom: 20px;">
+              <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #000000; padding-bottom: 15px;">
+                Shipping Tracking For Order <span style="color: #008000;">#${escapeHtml(orderId.split('-')[0] || '')}</span><span style="background-color: #ffff00;">${escapeHtml(orderId.split('-').slice(1).join('-') || '')}</span>
+              </h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+                <tr>
+                  <td style="padding: 5px 0;">
+                    <strong>Status:</strong> <span style="color: #0000ff;">${escapeHtml(orderStatus)}</span>
+                  </td>
+                </tr>
+                ${datePlaced ? `
+                <tr>
+                  <td style="padding: 5px 0;">
+                    <strong>Date Placed:</strong> ${escapeHtml(formatDate(datePlaced))}
+                  </td>
+                </tr>
+                ` : ''}
+                ${dateInvoiced ? `
+                <tr>
+                  <td style="padding: 5px 0;">
+                    <strong>Date Invoiced:</strong> ${escapeHtml(formatDate(dateInvoiced))}
+                  </td>
+                </tr>
+                ` : ''}
+              </table>
+              
+              ${shipToAddress ? `
+              <div style="margin-bottom: 20px;">
+                <strong>Ship to</strong><br>
+                ${shipToName ? `<div style="padding: 5px 0;">${escapeHtml(shipToName)}</div>` : ''}
+                <div style="padding: 5px 0; line-height: 1.6;">
+                  ${escapeHtml(shipToAddress)}
+                </div>
+              </div>
+              ` : ''}
             </td>
           </tr>
         </table>
@@ -251,14 +329,16 @@ const handler = async (event) => {
     let payload = JSON.parse(event.body);
 
     // Check for test payload - for local testing only
-    if (payload.joeven_test === true) {
+    const isTestMode = payload.joeven_test === true;
+    if (isTestMode) {
       console.log('Test payload detected, using sample dispatch data');
       payload = {
         CurrentTime: "2026-01-22 04:16:01",
         EventID: 15846,
         EventType: "Order",
         OrderID: payload.order_id || "26-0011994", // Allow custom order ID
-        OrderStatus: payload.order_status || "Dispatched" // Allow custom order status
+        OrderStatus: payload.order_status || "Dispatch", // Allow custom order status (default to "Dispatch" for test mode)
+        joeven_test: true // Preserve test flag
       };
     }
 
