@@ -22,8 +22,8 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
   // Get customer name (fallback to Username if name not available)
   const firstName = order.BillFirstName || '';
   const lastName = order.BillLastName || '';
-  const customerName = (firstName || lastName) 
-    ? `${firstName} ${lastName}`.trim() 
+  const customerName = (firstName || lastName)
+    ? `${firstName} ${lastName}`.trim()
     : (order.Username || 'Customer');
 
   // Get order details
@@ -32,7 +32,7 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
   const datePlaced = order.DatePlaced || '';
   const dateInvoiced = order.DateInvoiced || '';
   const shipAddress = order.ShipAddress || {};
-  
+
   // Format dates
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -93,9 +93,9 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
       const quantity = line.Quantity || line.Qty || 0;
       const shippingMethod = escapeHtml(line.ShippingMethod || 'N/A');
       const imageUrl = imageMap[sku] || '';
-      
+
       // Format description: ProductName (SKU)
-      const description = sku 
+      const description = sku
         ? `${productName} (${escapeHtml(sku)})`
         : productName;
 
@@ -234,35 +234,53 @@ const generateDispatchEmailHTML = (orderDetails, productImages, accountUrl = 'ht
               
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
                 <tr>
-                  <td style="padding: 5px 0;">
-                    <strong>Status:</strong> <span style="color: #0000ff;">${escapeHtml(orderStatus)}</span>
+                  <td width="50%" valign="top">
+                    <!-- Status and Dates -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 5px 0;">
+                          <strong>Status:</strong> <span style="color: #0000ff;">${escapeHtml(orderStatus)}</span>
+                        </td>
+                      </tr>
+                      ${datePlaced ? `
+                      <tr>
+                        <td style="padding: 5px 0;">
+                          <strong>Date Placed:</strong> ${escapeHtml(formatDate(datePlaced))}
+                        </td>
+                      </tr>
+                      ` : ''}
+                      ${dateInvoiced ? `
+                      <tr>
+                        <td style="padding: 5px 0;">
+                          <strong>Date Invoiced:</strong> ${escapeHtml(formatDate(dateInvoiced))}
+                        </td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                  </td>
+                  <td width="50%" valign="top" style="padding-left: 20px;">
+                    <!-- Shipping Address -->
+                    ${shipAddress ? `
+                      <div style="font-family: Arial, sans-serif; font-size: 16px; color: #000000;">
+                        <strong>Ship to</strong>
+                        ${shipAddress.Company ? `<div style="margin-top: 5px;">${escapeHtml(shipAddress.Company)}</div>` : ''}
+                        ${shipToName ? `<div style="margin-top: ${shipAddress.Company ? '2px' : '5px'};">${escapeHtml(shipToName)}</div>` : ''}
+                        ${(shipAddress.Address1 || shipAddress.Address2) ? `
+                          <div style="margin-top: 2px;">
+                            ${escapeHtml([shipAddress.Address1, shipAddress.Address2].filter(Boolean).join(', '))}
+                          </div>` : ''}
+                        <div style="margin-top: 2px;">
+                          ${escapeHtml([
+    shipAddress.City ? shipAddress.City.toUpperCase() : '',
+    [shipAddress.State, shipAddress.Postcode].filter(Boolean).join(' ')
+  ].filter(Boolean).join(', '))}
+                        </div>
+                        ${shipAddress.Country ? `<div style="margin-top: 2px;">${escapeHtml(shipAddress.Country)}</div>` : ''}
+                      </div>
+                    ` : ''}
                   </td>
                 </tr>
-                ${datePlaced ? `
-                <tr>
-                  <td style="padding: 5px 0;">
-                    <strong>Date Placed:</strong> ${escapeHtml(formatDate(datePlaced))}
-                  </td>
-                </tr>
-                ` : ''}
-                ${dateInvoiced ? `
-                <tr>
-                  <td style="padding: 5px 0;">
-                    <strong>Date Invoiced:</strong> ${escapeHtml(formatDate(dateInvoiced))}
-                  </td>
-                </tr>
-                ` : ''}
               </table>
-              
-              ${shipToAddress ? `
-              <div style="margin-bottom: 20px;">
-                <strong>Ship to</strong><br>
-                ${shipToName ? `<div style="padding: 5px 0;">${escapeHtml(shipToName)}</div>` : ''}
-                <div style="padding: 5px 0; line-height: 1.6;">
-                  ${escapeHtml(shipToAddress)}
-                </div>
-              </div>
-              ` : ''}
             </td>
           </tr>
         </table>
@@ -652,41 +670,6 @@ const handler = async (event) => {
         });
         // Continue processing even if HTML generation fails
       }
-    }
-
-    const timestamp_utc = new Date().toISOString();
-
-    // Save notification to Firestore for tracking (all statuses)
-    try {
-      const { db } = require('../utils/firebaseInit');
-
-      const firestoreDoc = {
-        order_id: payload.OrderID,
-        order_status: payload.OrderStatus,
-        event_id: payload.EventID,
-        event_type: payload.EventType,
-        current_time: payload.CurrentTime,
-        processed_at: timestamp_utc,
-        notification_type: payload.OrderStatus === 'Dispatch' ? 'maropost_order_dispatch' : 'maropost_order_notification',
-        processed: payload.OrderStatus === 'Dispatch',
-        order_details_fetched: orderDetails !== null,
-        order_details: orderDetails,
-        related_backorders_fetched: relatedBackorders !== null,
-        related_backorders: relatedBackorders,
-        product_images_fetched: productImages !== null,
-        product_images: productImages
-      };
-
-      await db.collection('maropost_order_notifications').add(firestoreDoc);
-
-      console.log('Order notification saved to Firestore:', { order_id: payload.OrderID, order_status: payload.OrderStatus });
-    } catch (firestoreError) {
-      console.error('Failed to save order notification to Firestore:', {
-        error: firestoreError.message,
-        order_id: payload.OrderID,
-        stack: firestoreError.stack
-      });
-      // Don't throw the error - continue with the response
     }
 
     // Return HTML response if HTML was generated, otherwise return a simple HTML message
