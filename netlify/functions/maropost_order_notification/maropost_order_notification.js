@@ -786,14 +786,14 @@ const handler = async (event) => {
       // Continue processing even if image fetch fails
     }
 
-    // Check if OrderStatus is "Dispatch" - only process dispatch notifications (unless testing)
-    if (payload.OrderStatus !== 'Dispatch' && !payload.joeven_test) {
+    // Check if OrderStatus is "Dispatch" or "Dispatched" - only process dispatch notifications (unless testing)
+    if (!['Dispatch', 'Dispatched'].includes(payload.OrderStatus) && !payload.joeven_test) {
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           message: 'Order notification received but not processed',
-          reason: `Order status is "${payload.OrderStatus}", only "Dispatch" orders are processed`,
+          reason: `Order status is "${payload.OrderStatus}", only "Dispatch" and "Dispatched" orders are processed`,
           order_id: payload.OrderID,
           order_status: payload.OrderStatus,
           processed: false,
@@ -809,7 +809,7 @@ const handler = async (event) => {
 
     // Generate HTML email template for dispatch notifications (or when testing)
     let htmlEmail = null;
-    if (orderDetails && (payload.OrderStatus === 'Dispatch' || payload.joeven_test)) {
+    if (orderDetails && (['Dispatch', 'Dispatched'].includes(payload.OrderStatus) || payload.joeven_test)) {
       try {
         htmlEmail = generateDispatchEmailHTML(orderDetails, productImages, relatedBackorders);
         console.log('HTML email template generated successfully');
