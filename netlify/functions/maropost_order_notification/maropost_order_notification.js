@@ -63,11 +63,19 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
 
   const shipToName = shipAddress?.Name || customerName;
 
-  // Get order lines and sort by OrderLineID
+  // Helper function to extract sequence number from OrderLineID (format: "26-0011994-1")
+  const getOrderLineSequence = (orderLineId) => {
+    if (!orderLineId || typeof orderLineId !== 'string') return 0;
+    const parts = orderLineId.split('-');
+    const lastPart = parts[parts.length - 1];
+    return parseInt(lastPart) || 0;
+  };
+
+  // Get order lines and sort by OrderLineID sequence
   const orderLines = (order.OrderLine || []).sort((a, b) => {
-    const aId = parseInt(a.OrderLineID) || 0;
-    const bId = parseInt(b.OrderLineID) || 0;
-    return aId - bId;
+    const aSeq = getOrderLineSequence(a.OrderLineID);
+    const bSeq = getOrderLineSequence(b.OrderLineID);
+    return aSeq - bSeq;
   });
 
   // Create a map of SKU to product image for quick lookup
@@ -157,11 +165,11 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
     let backorderRows = '';
     relatedBackorders.Order.forEach(boOrder => {
       if (boOrder.OrderLine) {
-        // Sort backorder lines by OrderLineID
+        // Sort backorder lines by OrderLineID sequence
         boOrder.OrderLine.sort((a, b) => {
-          const aId = parseInt(a.OrderLineID) || 0;
-          const bId = parseInt(b.OrderLineID) || 0;
-          return aId - bId;
+          const aSeq = getOrderLineSequence(a.OrderLineID);
+          const bSeq = getOrderLineSequence(b.OrderLineID);
+          return aSeq - bSeq;
         });
         boOrder.OrderLine.forEach(line => {
           const qty = line.Quantity || line.Qty || 0;
