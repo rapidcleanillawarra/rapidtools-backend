@@ -182,19 +182,19 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
 
     if (backorderRows) {
       backorderSection = `
-        <div style="margin-top:30px;border:1px solid #f0ad4e;border-radius:8px;overflow:hidden;">
-            <div style="background:linear-gradient(135deg,#f0ad4e 0%,#ec971f 100%);padding:15px 20px;">
+        <div style="margin-top:30px;border:1px solid #80BB3D;border-radius:8px;overflow:hidden;">
+            <div style="background:#222222;padding:15px 20px;">
               <h3 style="margin:0;color:#fff;font-size:18px;font-weight:600;">⏳ Items on Backorder</h3>
             </div>
             <table style="width:100%;border-collapse:collapse;">
                 <thead>
-                    <tr style="background:#fff8e6;">
-                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Image</th>
-                      <th style="padding:12px 8px;text-align:center;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">QTY</th>
-                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Code</th>
-                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Name</th>
-                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Unit Price</th>
-                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Subtotal</th>
+                    <tr style="background:#f8f8f8;">
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">Image</th>
+                      <th style="padding:12px 8px;text-align:center;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">QTY</th>
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">Code</th>
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">Name</th>
+                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">Unit Price</th>
+                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -229,7 +229,8 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
           
           <!-- Header Banner -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a5f7a 0%,#2d8ebb 100%);padding:30px 40px;">
+            <td style="background:linear-gradient(135deg,#222222 0%,#80BB3D 100%);padding:30px 40px;text-align:center;">
+              <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:200px;height:auto;margin-bottom:20px;display:block;margin-left:auto;margin-right:auto;" />
               <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">📦 Order Dispatched</h1>
               <p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">Order #${escapeHtml(orderId)}</p>
             </td>
@@ -259,17 +260,17 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
           <tr>
             <td style="padding:0 40px 30px;">
               <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
-                <div style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%);padding:15px 20px;">
+                <div style="background:#80BB3D;padding:15px 20px;">
                   <h2 style="margin:0;color:#fff;font-size:18px;font-weight:600;">✓ Items That Have Been Dispatched</h2>
                 </div>
                 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                   <thead>
                     <tr style="background:#f8faf9;">
-                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Image</th>
-                      <th style="padding:14px 12px;text-align:center;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;width:50px;">Qty</th>
-                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Description</th>
-                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Ship Method</th>
-                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Consignment #</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;font-size:13px;">Image</th>
+                      <th style="padding:14px 12px;text-align:center;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;font-size:13px;width:50px;">Qty</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;font-size:13px;">Description</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;font-size:13px;">Ship Method</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#222222;border-bottom:2px solid #80BB3D;font-size:13px;">Consignment #</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -310,17 +311,17 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
           <tr>
             <td style="padding:0 40px 30px;">
               <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
-                <div style="background:linear-gradient(135deg,#1a5f7a 0%,#2d8ebb 100%);padding:15px 20px;">
+                <div style="background:#222222;padding:15px 20px;">
                   <h2 style="margin:0;color:#fff;font-size:18px;font-weight:600;">📋 Shipping Tracking For Order #${escapeHtml(orderId)}</h2>
                 </div>
                 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                   <tr>
                     <td style="padding:25px;vertical-align:top;width:50%;border-right:1px solid #eee;">
-                      <h3 style="margin:0 0 15px;font-size:15px;color:#1a5f7a;font-weight:600;">Order Status</h3>
+                      <h3 style="margin:0 0 15px;font-size:15px;color:#80BB3D;font-weight:600;">Order Status</h3>
                       <table cellpadding="0" cellspacing="0" style="font-size:14px;">
                         <tr>
                           <td style="padding:5px 0;color:#666;width:120px;">Status:</td>
-                          <td style="padding:5px 0;"><span style="background:#28a745;color:#fff;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(orderStatus)}</span></td>
+                          <td style="padding:5px 0;"><span style="background:#80BB3D;color:#fff;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(orderStatus)}</span></td>
                         </tr>
                         ${purchaseOrderNumber ? `
                         <tr>
@@ -338,7 +339,7 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
                       </table>
                     </td>
                     <td style="padding:25px;vertical-align:top;width:50%;">
-                      <h3 style="margin:0 0 15px;font-size:15px;color:#1a5f7a;font-weight:600;">Ship To</h3>
+                      <h3 style="margin:0 0 15px;font-size:15px;color:#80BB3D;font-weight:600;">Ship To</h3>
                       <div style="font-size:14px;line-height:1.6;color:#444;">
                         ${shipAddress.Company ? `<strong>${escapeHtml(shipAddress.Company)}</strong><br>` : ''}
                         ${escapeHtml(shipToName)}<br>
@@ -382,7 +383,7 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
                     <td style="padding:15px 12px;vertical-align:middle;">${imgCell}</td>
                     <td style="padding:15px 12px;text-align:center;vertical-align:middle;font-weight:600;font-size:16px;color:#333;">${quantity}</td>
                     <td style="padding:15px 12px;vertical-align:middle;font-size:14px;color:#444;">${desc}</td>
-                    <td style="padding:15px 12px;vertical-align:middle;"><span style="background:#e8f4fd;color:#1a5f7a;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;">${shippingMethod}</span></td>
+                    <td style="padding:15px 12px;vertical-align:middle;"><span style="background:#f0f8e8;color:#80BB3D;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;">${shippingMethod}</span></td>
                   </tr>`;
   }).join('')}
                 </tbody>
@@ -403,7 +404,7 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
           <tr>
             <td style="background:#f5f7fa;padding:25px 40px;border-top:1px solid #e0e6ed;">
               <p style="margin:0;font-size:13px;color:#777;text-align:center;">
-                Thank you for choosing <strong style="color:#1a5f7a;">RapidClean Illawarra</strong>
+                Thank you for choosing <strong style="color:#80BB3D;">RapidClean Illawarra</strong>
               </p>
             </td>
           </tr>
