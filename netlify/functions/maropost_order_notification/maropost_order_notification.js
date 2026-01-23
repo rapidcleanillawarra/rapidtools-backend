@@ -229,10 +229,10 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
           
           <!-- Header Banner -->
           <tr>
-            <td style="background:linear-gradient(135deg,#222222 0%,#80BB3D 100%);padding:30px 40px;text-align:center;">
+            <td style="background:#222222;padding:30px 40px;text-align:center;">
               <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:200px;height:auto;margin-bottom:20px;display:block;margin-left:auto;margin-right:auto;" />
               <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">📦 Order Dispatched</h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">Order #${escapeHtml(orderId)}</p>
+              <p style="margin:12px 0 0;color:#80BB3D;font-size:22px;font-weight:700;letter-spacing:0.5px;">Order #${escapeHtml(orderId)}</p>
             </td>
           </tr>
           
