@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test Email HTML Output</title>
+    <title>Test Order Notification HTML Output</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
@@ -16,30 +16,47 @@
 </head>
 <body>
     <h1>Test Maropost Order Notification HTML</h1>
-    <p>Configure your test parameters and click the button to see the HTML email output:</p>
+    <p>Configure your test parameters and click the button to see the HTML output:</p>
 
     <div class="input-group">
         <label for="orderId">Order ID:</label>
         <input type="text" id="orderId" value="26-0011994" placeholder="e.g. 26-0011994">
     </div>
 
-    <button onclick="testEndpoint()">Test Email HTML Output</button>
+    <div class="input-group">
+        <label>Display Mode:</label>
+        <div style="display: inline-block; margin-left: 10px;">
+            <label style="width: auto; margin-right: 15px;">
+                <input type="radio" name="displayMode" value="email" checked> Email
+            </label>
+            <label style="width: auto;">
+                <input type="radio" name="displayMode" value="pdf"> PDF (Tax Invoice)
+            </label>
+        </div>
+    </div>
+
+    <button onclick="testEndpoint()">Test HTML Output</button>
 
     <div id="result">
-        <p>Click the button to see the HTML email template...</p>
+        <p>Click the button to see the HTML template...</p>
     </div>
 
     <script>
         async function testEndpoint() {
             const resultDiv = document.getElementById('result');
             const orderId = document.getElementById('orderId').value.trim();
+            const displayMode = document.querySelector('input[name="displayMode"]:checked').value;
 
             try {
                 resultDiv.innerHTML = '<p>Loading...</p>';
 
                 const requestBody = {
-                    joeven_test: true,
-                    order_id: orderId || undefined
+                    CurrentTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                    EventID: "15846",
+                    EventType: "Order",
+                    OrderID: orderId || "26-0011994",
+                    OrderStatus: "Dispatched",
+                    Display: displayMode
                 };
 
                 const response = await fetch('http://localhost:8888/.netlify/functions/maropost_order_notification', {
@@ -52,11 +69,13 @@
 
                 if (response.ok) {
                     const html = await response.text();
+                    const displayType = displayMode === 'pdf' ? 'Tax Invoice PDF' : 'Email';
+                    const fileName = displayMode === 'pdf' ? 'tax_invoice.html' : 'email_template.html';
                     resultDiv.innerHTML = `
-                        <h3>HTML Email Output (Order ID: ${orderId}):</h3>
+                        <h3>HTML ${displayType} Output (Order ID: ${orderId}):</h3>
                         <iframe srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>
                         <br><br>
-                        <button onclick="downloadHTML('${html.replace(/"/g, '&quot;').replace(/\n/g, '\\n')}')">Download HTML</button>
+                        <button onclick="downloadHTML('${html.replace(/"/g, '&quot;').replace(/\n/g, '\\n')}', '${fileName}')">Download HTML</button>
                     `;
                 } else {
                     resultDiv.innerHTML = `<p>Error: ${response.status} ${response.statusText}</p>`;
@@ -66,12 +85,12 @@
             }
         }
 
-        function downloadHTML(html) {
+        function downloadHTML(html, filename = 'email_template.html') {
             const blob = new Blob([html.replace(/\\n/g, '\n').replace(/&quot;/g, '"')], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'email_template.html';
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
