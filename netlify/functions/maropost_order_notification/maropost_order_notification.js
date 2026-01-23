@@ -155,19 +155,25 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
       if (boOrder.OrderLine) {
         boOrder.OrderLine.forEach(line => {
           const qty = line.Quantity || line.Qty || 0;
-          const code = escapeHtml(line.SKU || '');
+          const sku = line.SKU || '';
+          const code = escapeHtml(sku);
           const name = escapeHtml(line.ProductName || '');
           const unitPrice = line.UnitPrice ? `$${Number(line.UnitPrice).toFixed(2)}` : '';
           const subtotalRaw = (line.Quantity || 0) * (line.UnitPrice || 0);
           const subtotal = subtotalRaw ? `$${subtotalRaw.toFixed(2)}` : '';
+          const boImageUrl = imageMap[sku] || '';
+          const boImageCell = boImageUrl
+            ? `<img src="${escapeHtml(boImageUrl)}" alt="${escapeHtml(name)}" style="width:50px;height:50px;object-fit:contain;border-radius:4px;" />`
+            : '<span style="color:#999;font-size:10px;">No image</span>';
 
           backorderRows += `
                 <tr>
-                    <td>${qty}</td>
-                    <td>${code}</td>
-                    <td>${name}<br><i></i></td>
-                    <td>${unitPrice}</td>
-                    <td class="x_text-right">${subtotal}</td>
+                    <td style="padding:12px 8px;text-align:center;vertical-align:middle;">${boImageCell}</td>
+                    <td style="padding:12px 8px;text-align:center;vertical-align:middle;">${qty}</td>
+                    <td style="padding:12px 8px;vertical-align:middle;"><span style="color:#333;">${code}</span></td>
+                    <td style="padding:12px 8px;vertical-align:middle;">${name}</td>
+                    <td style="padding:12px 8px;text-align:right;vertical-align:middle;">${unitPrice}</td>
+                    <td style="padding:12px 8px;text-align:right;vertical-align:middle;font-weight:600;">${subtotal}</td>
                 </tr>
                `;
         });
@@ -176,11 +182,22 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
 
     if (backorderRows) {
       backorderSection = `
-        <div class="x_panel x_panel-default">
-            <div class="x_panel-heading"><h3 class="x_panel-title">Items on backorder</h3></div>
-            <table class="x_table">
+        <div style="margin-top:30px;border:1px solid #f0ad4e;border-radius:8px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#f0ad4e 0%,#ec971f 100%);padding:15px 20px;">
+              <h3 style="margin:0;color:#fff;font-size:18px;font-weight:600;">⏳ Items on Backorder</h3>
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#fff8e6;">
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Image</th>
+                      <th style="padding:12px 8px;text-align:center;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">QTY</th>
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Code</th>
+                      <th style="padding:12px 8px;text-align:left;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Name</th>
+                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Unit Price</th>
+                      <th style="padding:12px 8px;text-align:right;font-weight:600;color:#8a6d3b;border-bottom:2px solid #f0ad4e;">Subtotal</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    <tr><th>QTY</th><th>Code</th><th>Name</th><th>Unit Price</th><th class="x_text-right">Subtotal</th></tr>
                     ${backorderRows}
                 </tbody>
             </table>
@@ -197,248 +214,206 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
 
   // Generate the HTML email
   const html = `
-<div>
-Dear ${escapeHtml(customerName)}, <p>Thank you for shopping with RapidClean Illawarra. </p><p>Below is a list of items that have been dispatched to your nominated shipping address. A tax invoice has also been attached to this email for your records. </p><p>To track the progress of this and other orders online please go to <a data-auth="NotApplicable" rel="noopener noreferrer" target="_blank" href="${escapeHtml(accountUrl)}" data-linkindex="0" title="${escapeHtml(accountUrl)}">your account</a> and select the order you want to track. </p><hr><h2>Items That Have Been Dispatched</h2><table width="700px" cellspacing="0" cellpadding="2" border="0" align="center"><tbody><tr><td valign="top" width="70"><strong>Image</strong></td><td valign="top" width="32"><strong>Qty</strong></td><td valign="top"><strong>Description</strong></td><td nowrap="" valign="top" width="91"><strong>Ship Method</strong></td><td nowrap="" valign="top" colspan="2"><strong>Consignment #</strong></td></tr>
-${letterTableRows}
-</tbody></table><p><b>Please note:</b> some items on your order may arrive separately if they are sent using different shipping methods. </p><hr>
-<style>
-<!--
-.x_nPrintDoc
-  {margin:0;
-  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
-  font-size:14px;
-  line-height:1.42857143;
-  color:#333;
-  background-color:#fff;
-  box-sizing:border-box}
-.x_nPrintDoc a
-  {background-color:transparent}
-.x_nPrintDoc a:active, .x_nPrintDoc a:hover
-  {outline:0}
-.x_nPrintDoc b, .x_nPrintDoc strong
-  {font-weight:700}
-.x_nPrintDoc h1
-  {font-size:2em;
-  margin:.67em 0}
-.x_nPrintDoc small
-  {font-size:80%}
-.x_nPrintDoc img
-  {border:0}
-.x_nPrintDoc hr
-  {box-sizing:content-box;
-  height:0}
-.x_nPrintDoc button
-  {overflow:visible;
-  color:inherit;
-  font:inherit;
-  margin:0;
-  text-transform:none}
-.x_nPrintDoc button[disabled]
-  {}
-.x_nPrintDoc table
-  {border-collapse:collapse;
-  border-spacing:0}
-.x_nPrintDoc td, .x_nPrintDoc th
-  {padding:0}
-.x_nPrintDoc .x_text-center
-  {text-align:center!important}
-.x_nPrintDoc .x_text-left
-  {text-align:left!important}
-.x_nPrintDoc .x_text-right
-  {text-align:right!important}
-.x_nPrintDoc .x_float_right
-  {float:right!important}
-.x_nPrintDoc .x_float_left
-  {float:left!important}
-.x_nPrintDoc a, .x_nPrintDoc a:visited
-  {text-decoration:underline}
-.x_nPrintDoc thead
-  {display:table-header-group}
-.x_nPrintDoc img, .x_nPrintDoc tr
-  {page-break-inside:avoid}
-.x_nPrintDoc img
-  {max-width:100%!important}
-.x_nPrintDoc h2, .x_nPrintDoc h3, .x_nPrintDoc p
-  {orphans:3;
-  widows:3}
-.x_nPrintDoc h2, .x_nPrintDoc h3
-  {page-break-after:avoid}
-.x_nPrintDoc .x_table
-  {border-collapse:collapse!important}
-.x_nPrintDoc .x_table td, .x_nPrintDoc .x_table th
-  {background-color:#fff!important}
-.x_nPrintDoc .x_table-bordered td, .x_nPrintDoc .x_table-bordered th
-  {border:1px solid #ddd!important}
-.x_nPrintDoc *
-  {box-sizing:border-box}
-.x_nPrintDoc :after, .x_nPrintDoc :before
-  {box-sizing:border-box}
-.x_nPrintDoc a
-  {color:#337ab7;
-  text-decoration:none}
-.x_nPrintDoc a:focus, .x_nPrintDoc a:hover
-  {color:#23527c;
-  text-decoration:underline}
-.x_nPrintDoc a:focus
-  {}
-.x_nPrintDoc img
-  {vertical-align:middle}
-.x_nPrintDoc .x_img-responsive
-  {display:block;
-  max-width:100%;
-  height:auto}
-.x_nPrintDoc hr
-  {margin-top:20px;
-  margin-bottom:20px;
-  border:0;
-  border-top:1px solid #eee}
-.x_nPrintDoc [role=button]
-  {}
-.x_nPrintDoc .x_h1, .x_nPrintDoc .x_h2, .x_nPrintDoc .x_h3, .x_nPrintDoc .x_h4, .x_nPrintDoc .x_h5, .x_nPrintDoc .x_h6, .x_nPrintDoc h1, .x_nPrintDoc h2, .x_nPrintDoc h3, .x_nPrintDoc h4, .x_nPrintDoc h5, .x_nPrintDoc h6
-  {font-family:inherit;
-  font-weight:500;
-  line-height:1.5;
-  color:inherit}
-.x_nPrintDoc .x_h1 .x_small, .x_nPrintDoc .x_h1 small, .x_nPrintDoc .x_h2 .x_small, .x_nPrintDoc .x_h2 small, .x_nPrintDoc .x_h3 .x_small, .x_nPrintDoc .x_h3 small, .x_nPrintDoc .x_h4 .x_small, .x_nPrintDoc .x_h4 small, .x_nPrintDoc .x_h5 .x_small, .x_nPrintDoc .x_h5 small, .x_nPrintDoc .x_h6 .x_small, .x_nPrintDoc .x_h6 small, .x_nPrintDoc h1 .x_small, .x_nPrintDoc h1 small, .x_nPrintDoc h2 .x_small, .x_nPrintDoc h2 small, .x_nPrintDoc h3 .x_small, .x_nPrintDoc h3 small, .x_nPrintDoc h4 .x_small, .x_nPrintDoc h4 small, .x_nPrintDoc h5 .x_small, .x_nPrintDoc h5 small, .x_nPrintDoc h6 .x_small, .x_nPrintDoc h6 small
-  {font-weight:400;
-  line-height:1;
-  color:#777}
-.x_nPrintDoc .x_h1, .x_nPrintDoc .x_h2, .x_nPrintDoc .x_h3, .x_nPrintDoc h1, .x_nPrintDoc h2, .x_nPrintDoc h3
-  {margin-top:20px;
-  margin-bottom:10px}
-.x_nPrintDoc .x_h1 .x_small, .x_nPrintDoc .x_h1 small, .x_nPrintDoc .x_h2 .x_small, .x_nPrintDoc .x_h2 small, .x_nPrintDoc .x_h3 .x_small, .x_nPrintDoc .x_h3 small, .x_nPrintDoc h1 .x_small, .x_nPrintDoc h1 small, .x_nPrintDoc h2 .x_small, .x_nPrintDoc h2 small, .x_nPrintDoc h3 .x_small, .x_nPrintDoc h3 small
-  {font-size:65%}
-.x_nPrintDoc .x_h4, .x_nPrintDoc .x_h5, .x_nPrintDoc .x_h6, .x_nPrintDoc h4, .x_nPrintDoc h5, .x_nPrintDoc h6
-  {margin-top:10px;
-  margin-bottom:10px}
-.x_nPrintDoc .x_h4 .x_small, .x_nPrintDoc .x_h4 small, .x_nPrintDoc .x_h5 .x_small, .x_nPrintDoc .x_h5 small, .x_nPrintDoc .x_h6 .x_small, .x_nPrintDoc .x_h6 small, .x_nPrintDoc h4 .x_small, .x_nPrintDoc h4 small, .x_nPrintDoc h5 .x_small, .x_nPrintDoc h5 small, .x_nPrintDoc h6 .x_small, .x_nPrintDoc h6 small
-  {font-size:75%}
-.x_nPrintDoc .x_h1, .x_nPrintDoc h1
-  {font-size:28px}
-.x_nPrintDoc .x_h2, .x_nPrintDoc h2
-  {font-size:25px}
-.x_nPrintDoc .x_h3, .x_nPrintDoc h3
-  {font-size:20px}
-.x_nPrintDoc .x_h4, .x_nPrintDoc h4
-  {font-size:15px}
-.x_nPrintDoc .x_h5, .x_nPrintDoc h5
-  {font-size:9px}
-.x_nPrintDoc .x_h6, .x_nPrintDoc h6
-  {font-size:7px}
-.x_nPrintDoc p
-  {margin:0 0 10px}
-.x_nPrintDoc .x_small, .x_nPrintDoc small
-  {font-size:85%}
-.x_nPrintDoc .x_text-left
-  {text-align:left}
-.x_nPrintDoc .x_text-right
-  {text-align:right}
-.x_nPrintDoc .x_text-center
-  {text-align:center}
-.x_nPrintDoc .x_text-lowercase
-  {text-transform:lowercase}
-.x_nPrintDoc .x_text-uppercase
-  {text-transform:uppercase}
-.x_nPrintDoc .x_text-capitalize
-  {text-transform:capitalize}
-.x_nPrintDoc .x_text-muted
-  {color:#777}
-.x_nPrintDoc .x_text-primary
-  {color:#337ab7}
-.x_nPrintDoc .x_text-success
-  {color:#3c763d}
-.x_nPrintDoc .x_text-danger
-  {color:#a94442}
-.x_nPrintDoc ol, .x_nPrintDoc ul
-  {margin-top:0;
-  margin-bottom:10px}
-.x_nPrintDoc ol ol, .x_nPrintDoc ol ul, .x_nPrintDoc ul ol, .x_nPrintDoc ul ul
-  {margin-bottom:0}
-.x_nPrintDoc .x_list-unstyled
-  {padding-left:0;
-  list-style:none}
-.x_nPrintDoc .x_list-inline
-  {padding-left:0;
-  list-style:none}
-.x_nPrintDoc .x_list-inline > li
-  {display:inline-block;
-  padding-left:5px;
-  padding-right:5px}
-.x_nPrintDoc .x_btn
-  {display:inline-block;
-  margin-bottom:0;
-  font-weight:400;
-  text-align:center;
-  vertical-align:middle;
-  background-image:none;
-  border:1px solid transparent;
-  white-space:nowrap;
-  padding:6px 12px;
-  font-size:14px;
-  line-height:1.42857143;
-  border-radius:4px}
-.x_nPrintDoc a.x_btn.disabled, fieldset[disabled] a.x_nPrintDoc .x_btn
-  {}
-.x_nPrintDoc .x_btn-default
-  {color:#333;
-  background-color:#fff;
-  border-color:#ccc}
-.x_nPrintDoc .x_btn-default .x_badge
-  {color:#fff;
-  background-color:#333}
-.x_nPrintDoc .x_btn-primary
-  {color:#fff;
-  background-color:#337ab7;
-  border-color:#2e6da4}
-.x_nPrintDoc .x_btn-primary .x_badge
-  {color:#337ab7;
-  background-color:#fff}
-.x_nPrintDoc .x_btn-lg
-  {padding:10px 16px;
-  font-size:18px;
-  line-height:1.3333333;
-  border-radius:6px}
-.x_nPrintDoc .x_btn-sm
-  {padding:5px 10px;
-  font-size:12px;
-  line-height:1.5;
-  border-radius:3px}
-.x_nPrintDoc .x_btn-block
-  {display:block;
-  width:100%}
-.x_nPrintDoc .x_btn-block + .x_btn-block
-  {margin-top:5px}
-.x_nPrintDoc .x_container
-  {padding-right:15px;
-  padding-left:15px;
-  margin-right:auto;
-  margin-left:auto;
-  zoom:1}
-@media (min-width:768px){
-.x_nPrintDoc .x_container
-  {width:750px}
-
-  }
--->
-</style>
-<div class="x_nPrintDoc"><div id="x_trackingnotification" class="x_container">
-<h1><strong>Shipping Tracking For Order #<span class="x_text-success">${escapeHtml(orderIdPrefix)}-<span data-markjs="true" class="markxkjpt59lt" data-ogac="" data-ogab="" data-ogsc="" data-ogsb="" style="color: black !important; background-color: rgb(255, 241, 0) !important;">${escapeHtml(orderIdSuffix)}</span></span></strong></h1>
-<table style="width:100%"><tbody><tr><td colspan="2"><h2>Status: <span class="x_text-primary">${escapeHtml(orderStatus)}</span></h2><h4></h4>
-${purchaseOrderNumber ? `<p>PO #${escapeHtml(purchaseOrderNumber)}</p>` : ''}
-<p>Date Placed: ${escapeHtml(formatDate(datePlaced))}</p>
-<p>Date Invoiced: ${escapeHtml(formatDate(dateInvoiced))}</p></td>
-<td><h4>Ship to</h4>
-${shipAddress.Company ? `<p>${escapeHtml(shipAddress.Company)}</p>` : ''}
-<p>${escapeHtml(shipToName)}</p>
-<p>${escapeHtml([shipAddress.Address1, shipAddress.Address2].filter(Boolean).join(', '))}</p>
-<p>${escapeHtml([shipAddress.City ? shipAddress.City.toUpperCase() : '', shipAddress.State, shipAddress.Postcode].filter(Boolean).join(' '))}</p>
-<p>${escapeHtml(shipAddress.Country || 'Australia')}</p></td></tr></tbody></table>
-
-<table style="width:100%" class="x_table"><tbody><tr><th style="text-align:left">Image</th><th style="text-align:left">Qty</th><th style="text-align:left">Description</th><th style="text-align:left">Shipping Details </th></tr>
-${trackingTableRows}
-</tbody></table>
-${backorderSection}
-</div></div><hr></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Dispatched - RapidClean Illawarra</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f7fa;color:#333;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7fa;padding:20px 0;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:700px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.08);overflow:hidden;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a5f7a 0%,#2d8ebb 100%);padding:30px 40px;">
+              <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">📦 Order Dispatched</h1>
+              <p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">Order #${escapeHtml(orderId)}</p>
+            </td>
+          </tr>
+          
+          <!-- Greeting Section -->
+          <tr>
+            <td style="padding:30px 40px 20px;">
+              <p style="margin:0 0 15px;font-size:16px;line-height:1.6;color:#333;">
+                Dear <strong>${escapeHtml(customerName)}</strong>,
+              </p>
+              <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#555;">
+                Thank you for shopping with <strong>RapidClean Illawarra</strong>.
+              </p>
+              <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#555;">
+                Below is a list of items that have been dispatched to your nominated shipping address. A tax invoice has also been attached to this email for your records.
+              </p>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#555;">
+                To track the progress of this and other orders online please go to 
+                <a href="${escapeHtml(accountUrl)}" style="color:#1a5f7a;text-decoration:underline;font-weight:500;">your account</a> 
+                and select the order you want to track.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Dispatched Items Section -->
+          <tr>
+            <td style="padding:0 40px 30px;">
+              <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
+                <div style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%);padding:15px 20px;">
+                  <h2 style="margin:0;color:#fff;font-size:18px;font-weight:600;">✓ Items That Have Been Dispatched</h2>
+                </div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:#f8faf9;">
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Image</th>
+                      <th style="padding:14px 12px;text-align:center;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;width:50px;">Qty</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Description</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Ship Method</th>
+                      <th style="padding:14px 12px;text-align:left;font-weight:600;color:#2d5a3d;border-bottom:2px solid #28a745;font-size:13px;">Consignment #</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${orderLines.length === 0 ? `
+                    <tr>
+                      <td colspan="5" style="padding:30px;text-align:center;color:#888;">No items found in this order.</td>
+                    </tr>
+                    ` : orderLines.map((line, index) => {
+    const sku = line.SKU || '';
+    const productName = escapeHtml(line.ProductName || '');
+    const quantity = line.Quantity || line.Qty || 0;
+    const shippingMethod = escapeHtml(line.ShippingMethod || 'Local Delivery');
+    const imgUrl = imageMap[sku] || '';
+    const desc = sku ? `${productName} (${escapeHtml(sku)})` : productName;
+    const imgCell = imgUrl
+      ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(desc)}" style="width:60px;height:60px;object-fit:contain;border-radius:6px;border:1px solid #eee;" />`
+      : '<span style="color:#999;font-size:11px;">No image</span>';
+    const bgColor = index % 2 === 0 ? '#fff' : '#f9fbfa';
+    return `
+                    <tr style="background:${bgColor};">
+                      <td style="padding:12px;vertical-align:middle;">${imgCell}</td>
+                      <td style="padding:12px;text-align:center;vertical-align:middle;font-weight:600;color:#333;">${quantity}</td>
+                      <td style="padding:12px;vertical-align:middle;font-size:14px;color:#444;">${desc}</td>
+                      <td style="padding:12px;vertical-align:middle;font-size:13px;color:#666;">${shippingMethod}</td>
+                      <td style="padding:12px;vertical-align:middle;font-size:13px;color:#666;"></td>
+                    </tr>`;
+  }).join('')}
+                  </tbody>
+                </table>
+              </div>
+              <p style="margin:20px 0 0;font-size:13px;color:#777;line-height:1.5;">
+                <strong>Please note:</strong> Some items on your order may arrive separately if they are sent using different shipping methods.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Order Details Section -->
+          <tr>
+            <td style="padding:0 40px 30px;">
+              <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
+                <div style="background:linear-gradient(135deg,#1a5f7a 0%,#2d8ebb 100%);padding:15px 20px;">
+                  <h2 style="margin:0;color:#fff;font-size:18px;font-weight:600;">📋 Shipping Tracking For Order #${escapeHtml(orderId)}</h2>
+                </div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:25px;vertical-align:top;width:50%;border-right:1px solid #eee;">
+                      <h3 style="margin:0 0 15px;font-size:15px;color:#1a5f7a;font-weight:600;">Order Status</h3>
+                      <table cellpadding="0" cellspacing="0" style="font-size:14px;">
+                        <tr>
+                          <td style="padding:5px 0;color:#666;width:120px;">Status:</td>
+                          <td style="padding:5px 0;"><span style="background:#28a745;color:#fff;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(orderStatus)}</span></td>
+                        </tr>
+                        ${purchaseOrderNumber ? `
+                        <tr>
+                          <td style="padding:5px 0;color:#666;">PO #:</td>
+                          <td style="padding:5px 0;color:#333;font-weight:500;">${escapeHtml(purchaseOrderNumber)}</td>
+                        </tr>` : ''}
+                        <tr>
+                          <td style="padding:5px 0;color:#666;">Date Placed:</td>
+                          <td style="padding:5px 0;color:#333;">${escapeHtml(formatDate(datePlaced))}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:5px 0;color:#666;">Date Invoiced:</td>
+                          <td style="padding:5px 0;color:#333;">${escapeHtml(formatDate(dateInvoiced))}</td>
+                        </tr>
+                      </table>
+                    </td>
+                    <td style="padding:25px;vertical-align:top;width:50%;">
+                      <h3 style="margin:0 0 15px;font-size:15px;color:#1a5f7a;font-weight:600;">Ship To</h3>
+                      <div style="font-size:14px;line-height:1.6;color:#444;">
+                        ${shipAddress.Company ? `<strong>${escapeHtml(shipAddress.Company)}</strong><br>` : ''}
+                        ${escapeHtml(shipToName)}<br>
+                        ${escapeHtml([shipAddress.Address1, shipAddress.Address2].filter(Boolean).join(', '))}<br>
+                        ${escapeHtml([shipAddress.City ? shipAddress.City.toUpperCase() : '', shipAddress.State, shipAddress.Postcode].filter(Boolean).join(' '))}<br>
+                        ${escapeHtml(shipAddress.Country || 'Australia')}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- Tracking Items Table -->
+          <tr>
+            <td style="padding:0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
+                <thead>
+                  <tr style="background:#f5f7fa;">
+                    <th style="padding:14px 12px;text-align:left;font-weight:600;color:#555;border-bottom:1px solid #e0e6ed;font-size:13px;">Image</th>
+                    <th style="padding:14px 12px;text-align:center;font-weight:600;color:#555;border-bottom:1px solid #e0e6ed;font-size:13px;">Qty</th>
+                    <th style="padding:14px 12px;text-align:left;font-weight:600;color:#555;border-bottom:1px solid #e0e6ed;font-size:13px;">Description</th>
+                    <th style="padding:14px 12px;text-align:left;font-weight:600;color:#555;border-bottom:1px solid #e0e6ed;font-size:13px;">Shipping Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${orderLines.map((line, index) => {
+    const sku = line.SKU || '';
+    const productName = escapeHtml(line.ProductName || '');
+    const quantity = line.Quantity || line.Qty || 0;
+    const shippingMethod = escapeHtml(line.ShippingMethod || 'Local Delivery');
+    const imgUrl = imageMap[sku] || '';
+    const desc = sku ? `${productName} (${escapeHtml(sku)})` : productName;
+    const imgCell = imgUrl
+      ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(desc)}" style="width:70px;height:70px;object-fit:contain;border-radius:6px;" />`
+      : '<span style="color:#999;">No image</span>';
+    const bgColor = index % 2 === 0 ? '#fff' : '#fafbfc';
+    return `
+                  <tr style="background:${bgColor};">
+                    <td style="padding:15px 12px;vertical-align:middle;">${imgCell}</td>
+                    <td style="padding:15px 12px;text-align:center;vertical-align:middle;font-weight:600;font-size:16px;color:#333;">${quantity}</td>
+                    <td style="padding:15px 12px;vertical-align:middle;font-size:14px;color:#444;">${desc}</td>
+                    <td style="padding:15px 12px;vertical-align:middle;"><span style="background:#e8f4fd;color:#1a5f7a;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;">${shippingMethod}</span></td>
+                  </tr>`;
+  }).join('')}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Backorder Section -->
+          ${backorderSection ? `
+          <tr>
+            <td style="padding:0 40px 30px;">
+              ${backorderSection}
+            </td>
+          </tr>
+          ` : ''}
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f5f7fa;padding:25px 40px;border-top:1px solid #e0e6ed;">
+              <p style="margin:0;font-size:13px;color:#777;text-align:center;">
+                Thank you for choosing <strong style="color:#1a5f7a;">RapidClean Illawarra</strong>
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
   `.trim();
 
   return html;
