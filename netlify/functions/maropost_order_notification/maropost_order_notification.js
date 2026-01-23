@@ -40,9 +40,9 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
     try {
       const date = new Date(dateStr);
       const day = date.getDate();
-      const month = date.toLocaleString('en-US', { month: 'short' });
+      const month = date.toLocaleString('en-US', { month: 'long' });
       const year = date.getFullYear();
-      return `${day} ${month} ${year}`;
+      return `${month} ${day}, ${year}`;
     } catch (e) {
       return dateStr;
     }
@@ -63,8 +63,12 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
 
   const shipToName = shipAddress?.Name || customerName;
 
-  // Get order lines
-  const orderLines = order.OrderLine || [];
+  // Get order lines and sort by OrderLineID
+  const orderLines = (order.OrderLine || []).sort((a, b) => {
+    const aId = parseInt(a.OrderLineID) || 0;
+    const bId = parseInt(b.OrderLineID) || 0;
+    return aId - bId;
+  });
 
   // Create a map of SKU to product image for quick lookup
   const imageMap = {};
@@ -153,6 +157,12 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
     let backorderRows = '';
     relatedBackorders.Order.forEach(boOrder => {
       if (boOrder.OrderLine) {
+        // Sort backorder lines by OrderLineID
+        boOrder.OrderLine.sort((a, b) => {
+          const aId = parseInt(a.OrderLineID) || 0;
+          const bId = parseInt(b.OrderLineID) || 0;
+          return aId - bId;
+        });
         boOrder.OrderLine.forEach(line => {
           const qty = line.Quantity || line.Qty || 0;
           const sku = line.SKU || '';
@@ -319,15 +329,15 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
                     <td style="padding:25px;vertical-align:top;width:50%;border-right:1px solid #eee;">
                       <h3 style="margin:0 0 15px;font-size:15px;color:#80BB3D;font-weight:600;">Order Status</h3>
                       <table cellpadding="0" cellspacing="0" style="font-size:14px;">
+                        ${purchaseOrderNumber ? `
+                        <tr>
+                          <td style="padding:5px 0;color:#666;width:120px;">PO #:</td>
+                          <td style="padding:5px 0;color:#333;font-weight:500;">${escapeHtml(purchaseOrderNumber)}</td>
+                        </tr>` : ''}
                         <tr>
                           <td style="padding:5px 0;color:#666;width:120px;">Status:</td>
                           <td style="padding:5px 0;"><span style="background:#80BB3D;color:#fff;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(orderStatus)}</span></td>
                         </tr>
-                        ${purchaseOrderNumber ? `
-                        <tr>
-                          <td style="padding:5px 0;color:#666;">PO #:</td>
-                          <td style="padding:5px 0;color:#333;font-weight:500;">${escapeHtml(purchaseOrderNumber)}</td>
-                        </tr>` : ''}
                         <tr>
                           <td style="padding:5px 0;color:#666;">Date Placed:</td>
                           <td style="padding:5px 0;color:#333;">${escapeHtml(formatDate(datePlaced))}</td>
@@ -341,11 +351,11 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
                     <td style="padding:25px;vertical-align:top;width:50%;">
                       <h3 style="margin:0 0 15px;font-size:15px;color:#80BB3D;font-weight:600;">Ship To</h3>
                       <div style="font-size:14px;line-height:1.6;color:#444;">
-                        ${shipAddress.Company ? `<strong>${escapeHtml(shipAddress.Company)}</strong><br>` : ''}
-                        ${escapeHtml(shipToName)}<br>
-                        ${escapeHtml([shipAddress.Address1, shipAddress.Address2].filter(Boolean).join(', '))}<br>
-                        ${escapeHtml([shipAddress.City ? shipAddress.City.toUpperCase() : '', shipAddress.State, shipAddress.Postcode].filter(Boolean).join(' '))}<br>
-                        ${escapeHtml(shipAddress.Country || 'Australia')}
+                        ${order.ShipCompany ? `<strong>${escapeHtml(order.ShipCompany)}</strong><br>` : ''}
+                        ${escapeHtml(order.ShipFirstName || '')} ${escapeHtml(order.ShipLastName || '')}<br>
+                        ${escapeHtml([order.ShipStreetLine1, order.ShipStreetLine2].filter(Boolean).join(', '))}<br>
+                        ${escapeHtml([order.ShipCity, order.ShipState, order.ShipPostCode].filter(Boolean).join(' '))}<br>
+                        ${escapeHtml(order.ShipCountry || 'Australia')}
                       </div>
                     </td>
                   </tr>
@@ -520,6 +530,7 @@ const handler = async (event) => {
             "BillAddress",
             "ShipAddress",
             "OrderLine",
+            "OrderLine.OrderLineID",
             "OrderLine.SKU",
             "OrderLine.Quantity",
             "OrderLine.Qty",
@@ -529,6 +540,7 @@ const handler = async (event) => {
             "OrderStatus",
             "DatePlaced",
             "DateInvoiced",
+            "PurchaseOrderNumber",
             "DeliveryInstruction"
           ]
         },
@@ -598,8 +610,12 @@ const handler = async (event) => {
             "OrderStatus",
             "RelatedOrderID",
             "OrderLine",
+            "OrderLine.OrderLineID",
             "OrderLine.ProductName",
-            "OrderLine.UnitPrice"
+            "OrderLine.UnitPrice",
+            "OrderLine.Quantity",
+            "OrderLine.Qty",
+            "OrderLine.SKU"
           ]
         },
         "action": "GetOrder"
