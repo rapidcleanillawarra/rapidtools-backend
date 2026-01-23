@@ -822,21 +822,25 @@ const handler = async (event) => {
       }
     }
 
-    // Return HTML response if HTML was generated, otherwise return a simple HTML message
-    if (htmlEmail) {
-      return {
-        statusCode: 200,
-        headers: {
-          ...headers,
-          'Content-Type': 'text/html'
-        },
-        body: htmlEmail,
-      };
-    }
+    // Check if Display field is set to "email" to return HTML, otherwise return JSON
+    const returnHtml = payload.Display === 'email';
 
-    // For test requests, return HTML even if generation failed
-    if (payload.joeven_test) {
-      const testHtml = `
+    if (returnHtml) {
+      // Return HTML response if HTML was generated, otherwise return a simple HTML message
+      if (htmlEmail) {
+        return {
+          statusCode: 200,
+          headers: {
+            ...headers,
+            'Content-Type': 'text/html'
+          },
+          body: htmlEmail,
+        };
+      }
+
+      // For test requests, return HTML even if generation failed
+      if (payload.joeven_test) {
+        const testHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -851,20 +855,20 @@ const handler = async (event) => {
   ${orderDetails ? `<details><summary>Order Details (JSON)</summary><pre>${JSON.stringify(orderDetails, null, 2)}</pre></details>` : ''}
 </body>
 </html>
-      `.trim();
+        `.trim();
 
-      return {
-        statusCode: 200,
-        headers: {
-          ...headers,
-          'Content-Type': 'text/html'
-        },
-        body: testHtml,
-      };
-    }
+        return {
+          statusCode: 200,
+          headers: {
+            ...headers,
+            'Content-Type': 'text/html'
+          },
+          body: testHtml,
+        };
+      }
 
-    // Fallback HTML response if no HTML was generated
-    const fallbackHtml = `
+      // Fallback HTML response if no HTML was generated
+      const fallbackHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -878,15 +882,38 @@ const handler = async (event) => {
   <p>HTML email could not be generated. Order details may not be available or there was an error.</p>
 </body>
 </html>
-    `.trim();
+      `.trim();
 
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'text/html'
+        },
+        body: fallbackHtml,
+      };
+    }
+
+    // Return JSON response with order details
     return {
       statusCode: 200,
-      headers: {
-        ...headers,
-        'Content-Type': 'text/html'
-      },
-      body: fallbackHtml,
+      headers,
+      body: JSON.stringify({
+        message: 'Order notification processed successfully',
+        order_id: payload.OrderID,
+        order_status: payload.OrderStatus,
+        event_id: payload.EventID,
+        display_mode: payload.Display || 'json',
+        processed: true,
+        html_generated: htmlEmail !== null,
+        order_details_fetched: orderDetails !== null,
+        order_details: orderDetails,
+        related_backorders_fetched: relatedBackorders !== null,
+        related_backorders: relatedBackorders,
+        product_images_fetched: productImages !== null,
+        product_images: productImages,
+        timestamp: payload.CurrentTime
+      }),
     };
 
   } catch (error) {
