@@ -553,10 +553,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
 
   // Calculate GST (10%) and totals
   const gst = productSubtotal * 0.10;
-  const grandTotal = productSubtotal + gst;
+  const shippingTotal = parseFloat(order.ShippingTotal || 0);
+  const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
+  const shippingOption = order.ShippingOption || 'Local';
+  const grandTotal = productSubtotal + gst + shippingTotal - shippingDiscount;
   const amountPaid = 0; // Static for now
   const balanceDue = grandTotal - amountPaid;
-  const freightLocal = 0; // Static for now
 
   // Format addresses
   const shipAddressLines = formatShipAddress(order);
@@ -773,8 +775,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
         <td style="width: 50%;">
           <table cellpadding="0" cellspacing="0">
             <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Freight (Local):</td>
-              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; width: 120px;">${formatCurrency(freightLocal)}</td>
+              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Freight (${escapeHtml(shippingOption)}):</td>
+              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; width: 120px;">${formatCurrency(shippingTotal)}</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Product Subtotal:</td>
@@ -784,6 +786,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
               <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
               <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(gst)}</td>
             </tr>
+            ${shippingDiscount > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Shipping Discount:</td>
+              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">-${formatCurrency(shippingDiscount)}</td>
+            </tr>
+            ` : ''}
             <tr>
               <td style="padding: 12px 0; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">Grand Total:</td>
               <td style="padding: 12px 0 12px 15px; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">${formatCurrency(grandTotal)}</td>
@@ -933,7 +941,10 @@ const handler = async (event) => {
             "PurchaseOrderNumber",
             "DeliveryInstruction",
             "PaymentTerms",
-            "DatePaymentDue"
+            "DatePaymentDue",
+            "ShippingOption",
+            "ShippingTotal",
+            "ShippingDiscount"
           ]
         },
         "action": "GetOrder"
