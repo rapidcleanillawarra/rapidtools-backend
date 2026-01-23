@@ -1197,8 +1197,24 @@ const handler = async (event) => {
       }
     }
 
-    // Check if Display field is set to "email" to return HTML, otherwise return JSON
+    // Generate Tax Invoice HTML template for PDF generation when Display is "pdf"
+    let taxInvoiceHtml = null;
+    if (orderDetails && payload.Display === 'pdf') {
+      try {
+        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders);
+        console.log('Tax Invoice HTML template generated successfully');
+      } catch (invoiceError) {
+        console.error('Failed to generate Tax Invoice HTML template:', {
+          error: invoiceError.message,
+          stack: invoiceError.stack
+        });
+        // Continue processing even if HTML generation fails
+      }
+    }
+
+    // Check if Display field is set to "email" or "pdf" to return HTML, otherwise return JSON
     const returnHtml = payload.Display === 'email';
+    const returnPdf = payload.Display === 'pdf';
 
     if (returnHtml) {
       // Return HTML response if HTML was generated, otherwise return a simple HTML message
@@ -1269,6 +1285,48 @@ const handler = async (event) => {
       };
     }
 
+    // Check if Display field is set to "pdf" to return Tax Invoice HTML
+    if (returnPdf) {
+      // Return Tax Invoice HTML response if HTML was generated, otherwise return a simple HTML message
+      if (taxInvoiceHtml) {
+        return {
+          statusCode: 200,
+          headers: {
+            ...headers,
+            'Content-Type': 'text/html'
+          },
+          body: taxInvoiceHtml,
+        };
+      }
+
+      // Fallback HTML response if Tax Invoice HTML could not be generated
+      const fallbackInvoiceHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tax Invoice - ${escapeHtml(payload.OrderID || 'N/A')}</title>
+</head>
+<body>
+  <h1>Tax Invoice Generation Failed</h1>
+  <p>Order ID: ${escapeHtml(payload.OrderID || 'N/A')}</p>
+  <p>Status: ${escapeHtml(payload.OrderStatus || 'N/A')}</p>
+  <p>Event ID: ${escapeHtml(payload.EventID || 'N/A')}</p>
+  <p>Tax Invoice HTML could not be generated. Order details may not be available or there was an error.</p>
+  ${orderDetails ? `<details><summary>Order Details (JSON)</summary><pre>${JSON.stringify(orderDetails, null, 2)}</pre></details>` : ''}
+</body>
+</html>
+      `.trim();
+
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'text/html'
+        },
+        body: fallbackInvoiceHtml,
+      };
+    }
+
     // Return JSON response with order details
     return {
       statusCode: 200,
@@ -1281,6 +1339,7 @@ const handler = async (event) => {
         display_mode: payload.Display || 'json',
         processed: true,
         html_generated: htmlEmail !== null,
+        tax_invoice_html_generated: taxInvoiceHtml !== null,
         order_details_fetched: orderDetails !== null,
         order_details: orderDetails,
         related_backorders_fetched: relatedBackorders !== null,
