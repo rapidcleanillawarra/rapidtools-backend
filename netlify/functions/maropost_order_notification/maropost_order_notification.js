@@ -549,7 +549,9 @@ const handler = async (event) => {
             "DatePlaced",
             "DateInvoiced",
             "PurchaseOrderNumber",
-            "DeliveryInstruction"
+            "DeliveryInstruction",
+            "PaymentTerms",
+            "DatePaymentDue"
           ]
         },
         "action": "GetOrder"
