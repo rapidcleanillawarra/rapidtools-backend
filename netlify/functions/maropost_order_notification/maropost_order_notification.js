@@ -552,11 +552,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
   });
 
   // Calculate GST (10%) and totals
-  const gst = productSubtotal * 0.10;
   const shippingTotal = parseFloat(order.ShippingTotal || 0);
   const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
   const shippingOption = order.ShippingOption || 'Local';
-  const grandTotal = productSubtotal + gst + shippingTotal - shippingDiscount;
+  // GST is calculated on product subtotal + shipping costs (before discounts)
+  const gst = (productSubtotal + shippingTotal) * 0.10;
+  const grandTotal = productSubtotal + shippingTotal + gst - shippingDiscount;
   const amountPaid = 0; // Static for now
   const balanceDue = grandTotal - amountPaid;
 
