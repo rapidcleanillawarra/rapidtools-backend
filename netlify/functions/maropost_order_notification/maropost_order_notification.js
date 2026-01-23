@@ -438,6 +438,378 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
   return html;
 };
 
+// Helper function to format date from "2026-01-20" or "2026-01-20 13:00:00" to "20 Jan 2026"
+const formatInvoiceDate = (dateStr) => {
+  if (!dateStr) return '';
+  try {
+    // Handle both date-only and datetime formats
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    
+    const day = date.getDate();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  } catch (e) {
+    return dateStr;
+  }
+};
+
+// Helper function to format currency
+const formatCurrency = (amount) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '$0.00';
+  return `$${Number(amount).toFixed(2)}`;
+};
+
+// Helper function to format country code
+const formatCountry = (countryCode) => {
+  if (!countryCode) return 'Australia';
+  if (countryCode.toUpperCase() === 'AU') return 'Australia';
+  return countryCode;
+};
+
+// Helper function to format ship address
+const formatShipAddress = (order) => {
+  const parts = [];
+  if (order.ShipStreetLine1) {
+    const streetParts = [order.ShipStreetLine1];
+    if (order.ShipStreetLine2) {
+      streetParts.push(order.ShipStreetLine2);
+    }
+    parts.push(streetParts.join(', '));
+  }
+  const cityStatePostcode = [
+    order.ShipCity,
+    order.ShipState,
+    order.ShipPostCode
+  ].filter(Boolean).join(' ');
+  if (cityStatePostcode) parts.push(cityStatePostcode);
+  if (order.ShipCountry) {
+    parts.push(formatCountry(order.ShipCountry));
+  }
+  return parts;
+};
+
+// Helper function to format bill address
+const formatBillAddress = (order) => {
+  const parts = [];
+  if (order.BillStreetLine1) {
+    parts.push(order.BillStreetLine1);
+  }
+  const cityStatePostcode = [
+    order.BillCity,
+    order.BillState,
+    order.BillPostCode
+  ].filter(Boolean).join(' ');
+  if (cityStatePostcode) parts.push(cityStatePostcode);
+  if (order.BillCountry) {
+    parts.push(formatCountry(order.BillCountry));
+  }
+  return parts;
+};
+
+// Generate HTML template for Tax Invoice PDF
+const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) => {
+  // Extract order data
+  const order = orderDetails?.Order?.[0];
+  if (!order) {
+    return '<p>Order details not available.</p>';
+  }
+
+  const orderId = order.ID || order.OrderID || '';
+  const purchaseOrderNumber = order.PurchaseOrderNumber || '';
+
+  // Get order lines and sort by OrderLineID sequence
+  const getOrderLineSequence = (orderLineId) => {
+    if (!orderLineId || typeof orderLineId !== 'string') return 0;
+    const parts = orderLineId.split('-');
+    const lastPart = parts[parts.length - 1];
+    return parseInt(lastPart) || 0;
+  };
+
+  const orderLines = (order.OrderLine || []).sort((a, b) => {
+    const aSeq = getOrderLineSequence(a.OrderLineID);
+    const bSeq = getOrderLineSequence(b.OrderLineID);
+    return aSeq - bSeq;
+  });
+
+  // Calculate line item subtotals and totals
+  let productSubtotal = 0;
+  const orderLineRows = orderLines.map(line => {
+    const quantity = parseFloat(line.Quantity || line.Qty || 0);
+    const unitPrice = parseFloat(line.UnitPrice || 0);
+    const subtotal = quantity * unitPrice;
+    productSubtotal += subtotal;
+
+    return {
+      quantity: quantity,
+      sku: line.SKU || '',
+      productName: line.ProductName || '',
+      unitPrice: unitPrice,
+      subtotal: subtotal
+    };
+  });
+
+  // Calculate GST (10%) and totals
+  const gst = productSubtotal * 0.10;
+  const grandTotal = productSubtotal + gst;
+  const amountPaid = 0; // Static for now
+  const balanceDue = grandTotal - amountPaid;
+  const freightLocal = 0; // Static for now
+
+  // Format addresses
+  const shipAddressLines = formatShipAddress(order);
+  const billAddressLines = formatBillAddress(order);
+
+  // Format dates
+  const dateDue = formatInvoiceDate(order.DatePaymentDue);
+  const datePlaced = formatInvoiceDate(order.DatePlaced);
+  const dateInvoiced = formatInvoiceDate(order.DateInvoiced);
+
+  // Payment terms - extract from PaymentTerms or use default
+  const paymentTerms = order.PaymentTerms || 'Due 30 days after EOM';
+  const paymentTermsText = paymentTerms.includes('EOM') ? 'Due 30 days after EOM' : paymentTerms;
+
+  // Generate order line items table rows
+  let orderItemsRows = '';
+  if (orderLineRows.length === 0) {
+    orderItemsRows = `
+      <tr>
+        <td colspan="5" style="padding: 12px; text-align: center; color: #666;">
+          No items found in this order.
+        </td>
+      </tr>
+    `;
+  } else {
+    orderLineRows.forEach(item => {
+      orderItemsRows += `
+        <tr>
+          <td style="padding: 12px 8px; text-align: center; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${item.quantity}</td>
+          <td style="padding: 12px 8px; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${escapeHtml(item.sku)}</td>
+          <td style="padding: 12px 8px; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${escapeHtml(item.productName)}</td>
+          <td style="padding: 12px 8px; text-align: right; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${formatCurrency(item.unitPrice)}</td>
+          <td style="padding: 12px 8px; text-align: right; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${formatCurrency(item.subtotal)}</td>
+        </tr>
+      `;
+    });
+  }
+
+  // Generate backorder items section
+  let backorderSection = '';
+  if (relatedBackorders && relatedBackorders.Order && relatedBackorders.Order.length > 0) {
+    let backorderRows = '';
+    relatedBackorders.Order.forEach(boOrder => {
+      if (boOrder.OrderLine) {
+        boOrder.OrderLine.sort((a, b) => {
+          const aSeq = getOrderLineSequence(a.OrderLineID);
+          const bSeq = getOrderLineSequence(b.OrderLineID);
+          return aSeq - bSeq;
+        });
+        boOrder.OrderLine.forEach(line => {
+          const qty = parseFloat(line.Quantity || line.Qty || 0);
+          const unitPrice = parseFloat(line.UnitPrice || 0);
+          const subtotal = qty * unitPrice;
+          backorderRows += `
+            <tr>
+              <td style="padding: 12px 8px; text-align: center; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${qty}</td>
+              <td style="padding: 12px 8px; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${escapeHtml(line.SKU || '')}</td>
+              <td style="padding: 12px 8px; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${escapeHtml(line.ProductName || '')}</td>
+              <td style="padding: 12px 8px; text-align: right; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${formatCurrency(unitPrice)}</td>
+              <td style="padding: 12px 8px; text-align: right; vertical-align: middle; border-bottom: 1px solid #e0e0e0;">${formatCurrency(subtotal)}</td>
+            </tr>
+          `;
+        });
+      }
+    });
+
+    if (backorderRows) {
+      backorderSection = `
+        <div style="margin-top: 30px;">
+          <h3 style="margin: 0 0 15px; font-size: 16px; font-weight: 600; color: #333;">Items on backorder</h3>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0;">
+            <thead>
+              <tr style="background-color: #f5f5f5;">
+                <th style="padding: 12px 8px; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #333;">QTY</th>
+                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #333;">SKU</th>
+                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Name</th>
+                <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Unit Price (Ex GST)</th>
+                <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${backorderRows}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+  }
+
+  // Generate the HTML invoice
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tax Invoice - ${escapeHtml(orderId)}</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 20px; font-family: Arial, sans-serif; color: #333; background-color: #fff;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 800px; margin: 0 auto; background: #fff;">
+    <!-- Header Section -->
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="vertical-align: top;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #333;">Tax Invoice #<span style="color: #80BB3D;">${escapeHtml(orderId)}</span></h1>
+              ${purchaseOrderNumber ? `<p style="margin: 5px 0 0; font-size: 14px; color: #666;">PO # ${escapeHtml(purchaseOrderNumber)}</p>` : ''}
+            </td>
+            <td style="text-align: right; vertical-align: top;">
+              <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: 600; color: #80BB3D; margin-bottom: 5px;">RapidClean ILLAWARRA</div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                  ABN: 88 631 494 418<br>
+                  ACN: 631 494 418
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Address and Dates Section -->
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+              <h3 style="margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #333;">Ship to</h3>
+              <div style="font-size: 13px; line-height: 1.6; color: #333;">
+                ${order.ShipCompany ? `<strong>${escapeHtml(order.ShipCompany)}</strong><br>` : ''}
+                ${escapeHtml(order.ShipFirstName || '')} ${escapeHtml(order.ShipLastName || '')}<br>
+                ${shipAddressLines.map(line => escapeHtml(line)).join('<br>')}
+              </div>
+            </td>
+            <td style="width: 50%; vertical-align: top; padding-left: 20px;">
+              <h3 style="margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #333;">Billed to</h3>
+              <div style="font-size: 13px; line-height: 1.6; color: #333;">
+                ${order.BillCompany ? `<strong>${escapeHtml(order.BillCompany)}</strong><br>` : ''}
+                ${escapeHtml(order.BillFirstName || '')} ${escapeHtml(order.BillLastName || '')}<br>
+                ${billAddressLines.map(line => escapeHtml(line)).join('<br>')}
+              </div>
+              <div style="margin-top: 20px; font-size: 13px; line-height: 1.8;">
+                <div style="color: #d32f2f; font-weight: 600; margin-bottom: 5px;">${escapeHtml(paymentTermsText)}</div>
+                ${dateDue ? `<div>Date Due: ${escapeHtml(dateDue)}</div>` : ''}
+                ${datePlaced ? `<div>Date placed: ${escapeHtml(datePlaced)}</div>` : ''}
+                ${dateInvoiced ? `<div>Date invoiced: ${escapeHtml(dateInvoiced)}</div>` : ''}
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Instructions Section -->
+    ${order.DeliveryInstruction ? `
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <div style="background-color: #f5e6d3; border: 1px solid #d4a574; padding: 12px 15px; border-radius: 4px;">
+          <strong style="font-size: 13px; color: #333;">Instructions:</strong>
+          <span style="font-size: 13px; color: #333; margin-left: 5px;">${escapeHtml(order.DeliveryInstruction)}</span>
+        </div>
+      </td>
+    </tr>
+    ` : ''}
+
+    <!-- Order Line Items Table -->
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #e0e0e0;">
+          <thead>
+            <tr style="background-color: #f5f5f5;">
+              <th style="padding: 12px 8px; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #333;">QTY</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #333;">SKU</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Name</th>
+              <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Unit Price (Ex GST)</th>
+              <th style="padding: 12px 8px; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #333;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orderItemsRows}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Financial Summary -->
+    <tr>
+      <td style="padding-bottom: 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width: 60%;"></td>
+            <td style="width: 40%;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; text-align: right; font-size: 13px; color: #666; border-bottom: 1px solid #e0e0e0;">Freight Local:</td>
+                  <td style="padding: 8px 0 8px 15px; text-align: right; font-size: 13px; color: #333; border-bottom: 1px solid #e0e0e0; width: 120px;">${formatCurrency(freightLocal)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; text-align: right; font-size: 13px; color: #666; border-bottom: 1px solid #e0e0e0;">Product Subtotal:</td>
+                  <td style="padding: 8px 0 8px 15px; text-align: right; font-size: 13px; color: #333; border-bottom: 1px solid #e0e0e0;">${formatCurrency(productSubtotal)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; text-align: right; font-size: 13px; color: #666; border-bottom: 1px solid #e0e0e0;">GST:</td>
+                  <td style="padding: 8px 0 8px 15px; text-align: right; font-size: 13px; color: #333; border-bottom: 1px solid #e0e0e0;">${formatCurrency(gst)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; text-align: right; font-size: 14px; font-weight: 600; color: #333; border-bottom: 1px solid #e0e0e0;">Grand Total:</td>
+                  <td style="padding: 8px 0 8px 15px; text-align: right; font-size: 14px; font-weight: 600; color: #333; border-bottom: 1px solid #e0e0e0;">${formatCurrency(grandTotal)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; text-align: right; font-size: 13px; color: #666;">Amount Paid:</td>
+                  <td style="padding: 8px 0 8px 15px; text-align: right; font-size: 13px; color: #333;">${formatCurrency(amountPaid)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 0 8px; text-align: right; font-size: 15px; font-weight: 700; color: #80BB3D;">Balance Due:</td>
+                  <td style="padding: 12px 0 8px 15px; text-align: right; font-size: 15px; font-weight: 700; color: #80BB3D;">${formatCurrency(balanceDue)}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Backorder Section -->
+    ${backorderSection}
+
+    <!-- Payment Options Section -->
+    <tr>
+      <td style="padding-top: 30px; border-top: 2px solid #e0e0e0;">
+        <h3 style="margin: 0 0 10px; font-size: 16px; font-weight: 600; color: #333;">Payment Options</h3>
+        <div style="font-size: 13px; line-height: 1.6; color: #333;">
+          <div style="margin-bottom: 5px;"><strong>Name:</strong> RAPID ILLAWARRA PTY LTD</div>
+          <div>Acc #: 200839104 - BSB: 641800 - Ph: 02 4227 2833</div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  return html;
+};
+
 const handler = async (event) => {
   // Add CORS headers for production
   const headers = {
@@ -544,6 +916,7 @@ const handler = async (event) => {
             "OrderLine.Qty",
             "OrderLine.ShippingMethod",
             "OrderLine.ProductName",
+            "OrderLine.UnitPrice",
             "DatePlaced",
             "OrderStatus",
             "DatePlaced",
