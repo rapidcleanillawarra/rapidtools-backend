@@ -465,7 +465,7 @@ const formatCurrency = (amount) => {
 // Helper function to format date for folder name (january_24_2026)
 const formatFolderDate = (date = new Date()) => {
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
-                      'july', 'august', 'september', 'october', 'november', 'december'];
+    'july', 'august', 'september', 'october', 'november', 'december'];
   const day = date.getDate();
   const month = monthNames[date.getMonth()];
   const year = date.getFullYear();
@@ -1273,7 +1273,7 @@ const handler = async (event) => {
 
     // Generate Tax Invoice HTML template for PDF generation when Display is "pdf"
     let taxInvoiceHtml = null;
-    if (orderDetails && payload.Display === 'pdf') {
+    if (orderDetails && (payload.Display === 'pdf' || payload.Display === 'data')) {
       try {
         taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders);
         console.log('Tax Invoice HTML template generated successfully');
