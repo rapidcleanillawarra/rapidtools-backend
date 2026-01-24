@@ -1436,7 +1436,7 @@ const handler = async (event) => {
           document_id: documentId,
           customer_username: orderDetails?.Order?.[0]?.Username || '',
           folder_name: `Sent Invoices/${formatFolderDate()}`,
-          file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}`,
+          file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}-${documentId}`,
           created_by: 'Power Automate',
           email_html: htmlEmail || null,
           pdf_html: taxInvoiceHtml || null
