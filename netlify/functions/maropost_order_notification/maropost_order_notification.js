@@ -822,10 +822,34 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
     ${backorderSection}
 
     <!-- Footer -->
-    <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; text-align: center; color: #777; font-size: 12px; margin-top: 40px;">
-       <p style="margin-bottom: 5px;"><strong>Payment Options</strong></p>
-       <p>Payable via EFT. Bank: Example Bank. BSB: 641-800. Acc: 200839104. Ref: ${escapeHtml(orderId)}</p>
-       <p style="margin-top: 20px;">Thank you for your business!</p>
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; margin-top: 40px;">
+      <h3 style="margin: 0 0 15px; font-size: 16px; font-weight: 600; color: #333; text-align: center;">Payment Options</h3>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align: top; width: 60%; padding-right: 20px;">
+              <div style="font-size: 13px; line-height: 1.6; color: #333;">
+                <strong style="color: #80BB3D; font-size: 14px;">Banking Details:</strong><br><br>
+                <strong>IMB Shellharbour City</strong><br>
+                BSB: 641-800<br>
+                A/C: 200839104<br>
+                Name: Rapid Illawarra Pty Ltd<br>
+                Swiftcode: ASLLAU2C
+              </div>
+          </td>
+          <td style="vertical-align: top; width: 40%; text-align: center;">
+              <div style="border: 1px solid #eee; padding: 15px; border-radius: 8px; display: inline-block; background-color: #fafafa;">
+                <img src="https://www.rapidsupplies.com.au/assets/images/stripe_qr.png" alt="Stripe Payment QR" style="width: 140px; height: 140px; margin-bottom: 15px; border: 1px solid #eee; padding: 4px; background: #fff; display: block; margin-left: auto; margin-right: auto;">
+                <a href="{{STRIPE_QR}}" style="background-color: #80BB3D; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-weight: 600; font-size: 14px; display: inline-block; margin-bottom: 10px;">Pay Online</a>
+                <div style="font-size: 11px; color: #666; word-break: break-all;">
+                  <a href="{{STRIPE_QR}}" style="color: #666; text-decoration: underline;">https://buy.stripe.com/dRm9AUexncD0fQacewaZi00</a>
+                </div>
+              </div>
+          </td>
+        </tr>
+      </table>
+      <div style="margin-top: 30px; text-align: center; color: #777; font-size: 12px;">
+          <p>Thank you for your business!</p>
+      </div>
     </div>
 
   </div>
