@@ -1269,6 +1269,7 @@ const handler = async (event) => {
           reason: `Order status is "${payload.OrderStatus}", only "Dispatch" and "Dispatched" orders are processed`,
           order_id: payload.OrderID,
           document_id: documentId,
+          customer_email: orderDetails?.Order?.[0]?.Email || '',
           order_status: payload.OrderStatus,
           processed: false,
           order_details_fetched: orderDetails !== null,
@@ -1434,6 +1435,7 @@ const handler = async (event) => {
         body: JSON.stringify({
           order_id: payload.OrderID,
           document_id: documentId,
+          customer_email: orderDetails?.Order?.[0]?.Email || '',
           customer_username: orderDetails?.Order?.[0]?.Username || '',
           folder_name: `Sent Invoices/${formatFolderDate()}`,
           file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}-${documentId}`,
@@ -1452,6 +1454,7 @@ const handler = async (event) => {
         message: 'Order notification processed successfully',
         order_id: payload.OrderID,
         document_id: documentId,
+        customer_email: orderDetails?.Order?.[0]?.Email || '',
         order_status: payload.OrderStatus,
         event_id: payload.EventID,
         display_mode: payload.Display || 'json',
