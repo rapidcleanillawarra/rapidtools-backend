@@ -1383,6 +1383,19 @@ const handler = async (event) => {
       };
     }
 
+    // Check if Display field is set to "data" to return JSON with email and PDF HTML
+    if (payload.Display === 'data') {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          order_id: payload.OrderID,
+          email_html: htmlEmail || null,
+          pdf_html: taxInvoiceHtml || null
+        }),
+      };
+    }
+
     // Return JSON response with order details
     return {
       statusCode: 200,

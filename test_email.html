@@ -29,8 +29,11 @@
             <label style="width: auto; margin-right: 15px;">
                 <input type="radio" name="displayMode" value="email" checked> Email
             </label>
-            <label style="width: auto;">
+            <label style="width: auto; margin-right: 15px;">
                 <input type="radio" name="displayMode" value="pdf"> PDF (Tax Invoice)
+            </label>
+            <label style="width: auto;">
+                <input type="radio" name="displayMode" value="data"> Data (JSON)
             </label>
         </div>
     </div>
@@ -68,15 +71,29 @@
                 });
 
                 if (response.ok) {
-                    const html = await response.text();
-                    const displayType = displayMode === 'pdf' ? 'Tax Invoice PDF' : 'Email';
-                    const fileName = displayMode === 'pdf' ? 'tax_invoice.html' : 'email_template.html';
-                    resultDiv.innerHTML = `
-                        <h3>HTML ${displayType} Output (Order ID: ${orderId}):</h3>
-                        <iframe srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>
-                        <br><br>
-                        <button onclick="downloadHTML('${html.replace(/"/g, '&quot;').replace(/\n/g, '\\n')}', '${fileName}')">Download HTML</button>
-                    `;
+                    if (displayMode === 'data') {
+                        // Handle JSON response for data mode
+                        const jsonData = await response.json();
+                        const displayType = 'JSON Data';
+                        const fileName = 'order_data.json';
+                        resultDiv.innerHTML = `
+                            <h3>${displayType} Output (Order ID: ${orderId}):</h3>
+                            <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; max-height: 600px;">${JSON.stringify(jsonData, null, 2)}</pre>
+                            <br><br>
+                            <button onclick="downloadJSON(${JSON.stringify(jsonData)}, '${fileName}')">Download JSON</button>
+                        `;
+                    } else {
+                        // Handle HTML response for email and pdf modes
+                        const html = await response.text();
+                        const displayType = displayMode === 'pdf' ? 'Tax Invoice PDF' : 'Email';
+                        const fileName = displayMode === 'pdf' ? 'tax_invoice.html' : 'email_template.html';
+                        resultDiv.innerHTML = `
+                            <h3>HTML ${displayType} Output (Order ID: ${orderId}):</h3>
+                            <iframe srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>
+                            <br><br>
+                            <button onclick="downloadHTML('${html.replace(/"/g, '&quot;').replace(/\n/g, '\\n')}', '${fileName}')">Download HTML</button>
+                        `;
+                    }
                 } else {
                     resultDiv.innerHTML = `<p>Error: ${response.status} ${response.statusText}</p>`;
                 }
@@ -87,6 +104,18 @@
 
         function downloadHTML(html, filename = 'email_template.html') {
             const blob = new Blob([html.replace(/\\n/g, '\n').replace(/&quot;/g, '"')], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadJSON(jsonData, filename = 'order_data.json') {
+            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
