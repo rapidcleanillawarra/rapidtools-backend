@@ -634,7 +634,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     orderLineRows.forEach((item, index) => {
       const rowBg = index % 2 === 0 ? '#fff' : '#f9f9f9';
       orderItemsRows += `
-        <tr style="background-color: ${rowBg};">
+        <tr style="background-color: ${rowBg}; page-break-inside: avoid; break-inside: avoid;">
           <td style="padding: 10px 8px; text-align: center; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${item.quantity}</td>
           <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(item.sku)}</td>
           <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(item.productName)}</td>
@@ -662,7 +662,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
           const subtotal = qty * unitPrice;
           const rowBg = index % 2 === 0 ? '#fff' : '#f9f9f9';
           backorderRows += `
-            <tr style="background-color: ${rowBg};">
+            <tr style="background-color: ${rowBg}; page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 10px 8px; text-align: center; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${qty}</td>
               <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(line.SKU || '')}</td>
               <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(line.ProductName || '')}</td>
@@ -676,7 +676,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
 
     if (backorderRows) {
       backorderSection = `
-        <div style="margin-top: 30px; page-break-before: always;">
+        <div style="margin-top: 30px; page-break-inside: avoid; break-inside: avoid;">
            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
              <tr>
                <td style="background-color: #222; padding: 10px 15px; border-radius: 4px;">
@@ -816,45 +816,47 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     </table>
 
     <!-- Totals -->
-    <table cellpadding="0" cellspacing="0" style="margin-bottom: 40px;">
-      <tr>
-        <td style="width: 50%;"></td>
-        <td style="width: 50%;">
-          <table cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Freight (${escapeHtml(shippingOption)}):</td>
-              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; width: 120px;">${formatCurrency(shippingTotal)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Product Subtotal:</td>
-              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(productSubtotal)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
-              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(gst)}</td>
-            </tr>
-            ${shippingDiscount > 0 ? `
-            <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Shipping Discount:</td>
-              <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">-${formatCurrency(shippingDiscount)}</td>
-            </tr>
-            ` : ''}
-            <tr>
-              <td style="padding: 12px 0; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">Grand Total:</td>
-              <td style="padding: 12px 0 12px 15px; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">${formatCurrency(grandTotal)}</td>
-            </tr>
-            <tr>
-               <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right;">Amount Paid:</td>
-               <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right;">${formatCurrency(amountPaid)}</td>
-            </tr>
-            <tr>
-               <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Balance Due:</td>
-               <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+    <div style="page-break-inside: avoid; break-inside: avoid;">
+      <table cellpadding="0" cellspacing="0" style="margin-bottom: 40px;">
+        <tr>
+          <td style="width: 50%;"></td>
+          <td style="width: 50%;">
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Freight (${escapeHtml(shippingOption)}):</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; width: 120px;">${formatCurrency(shippingTotal)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Product Subtotal:</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(productSubtotal)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(gst)}</td>
+              </tr>
+              ${shippingDiscount > 0 ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Shipping Discount:</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">-${formatCurrency(shippingDiscount)}</td>
+              </tr>
+              ` : ''}
+              <tr>
+                <td style="padding: 12px 0; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">Grand Total:</td>
+                <td style="padding: 12px 0 12px 15px; color: #333; font-size: 16px; font-weight: 700; text-align: right; border-bottom: 2px solid #333;">${formatCurrency(grandTotal)}</td>
+              </tr>
+              <tr>
+                 <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right;">Amount Paid:</td>
+                 <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right;">${formatCurrency(amountPaid)}</td>
+              </tr>
+              <tr>
+                 <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Balance Due:</td>
+                 <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
 
     <!-- Backorders (if any) -->
     ${backorderSection}
