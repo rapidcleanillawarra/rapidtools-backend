@@ -860,7 +860,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     ${backorderSection}
 
     <!-- Footer -->
-    <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; margin-top: 40px;">
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; margin-top: 40px; page-break-before: always;">
       <h3 style="margin: 0 0 15px; font-size: 16px; font-weight: 600; color: #333; text-align: center;">Payment Options</h3>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
