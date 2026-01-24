@@ -5,8 +5,8 @@ const { supabase } = require('../utils/supabaseInit');
  * 
  * This function:
  * 1. Receives invoice send data
- * 2. Validates required fields (order_id, customer_email)
- * 3. Saves the log to Supabase invoice_send_logs table
+ * 2. Validates required fields (order_id only, customer_email is optional)
+ * 3. Saves the log to Supabase invoice_send_logs table (order_details is boolean)
  * 4. Returns response indicating which boolean fields are false (if any)
  */
 const handler = async (event) => {
@@ -76,36 +76,36 @@ const handler = async (event) => {
             };
         }
 
-        if (!payload.customer_email) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({
-                    success: false,
-                    error: 'Validation Error',
-                    details: 'customer_email is required'
-                })
-            };
-        }
+        // customer_email is now optional (nullable in database)
 
-        // Process order_detail -> order_details mapping
+        // Helper function to safely convert values to boolean
+        const toBoolean = (value) => {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+            if (typeof value === 'string') {
+                const lowerValue = value.toLowerCase().trim();
+                if (lowerValue === 'true') return true;
+                if (lowerValue === 'false') return false;
+                // If it's a JSON string, try to parse it
+                try {
+                    const parsed = JSON.parse(value);
+                    return Boolean(parsed);
+                } catch (e) {
+                    return false;
+                }
+            }
+            if (typeof value === 'number') {
+                return value !== 0;
+            }
+            return Boolean(value);
+        };
+
+        // Process order_detail -> order_details mapping (now boolean field)
         let orderDetails = null;
         if (payload.order_detail !== undefined) {
-            if (typeof payload.order_detail === 'boolean') {
-                // If it's a boolean, store as an object with the boolean value
-                orderDetails = { order_detail: payload.order_detail };
-            } else if (typeof payload.order_detail === 'string') {
-                // If it's a string, try to parse it as JSON
-                try {
-                    orderDetails = JSON.parse(payload.order_detail);
-                } catch (e) {
-                    // If parsing fails, store as a string value
-                    orderDetails = { order_detail: payload.order_detail };
-                }
-            } else if (typeof payload.order_detail === 'object' && payload.order_detail !== null) {
-                // If it's already an object, use it as-is
-                orderDetails = payload.order_detail;
-            }
+            // Convert order_detail to boolean since order_details is now a boolean field
+            orderDetails = toBoolean(payload.order_detail);
         }
 
         // Prepare database record
@@ -115,8 +115,8 @@ const handler = async (event) => {
             order_details: orderDetails,
             document_id: payload.document_id || null,
             pdf_path: payload.pdf_path || null,
-            pdf_exists: payload.pdf_exists !== undefined ? Boolean(payload.pdf_exists) : false,
-            email_sent: payload.email_sent !== undefined ? Boolean(payload.email_sent) : false
+            pdf_exists: payload.pdf_exists !== undefined ? toBoolean(payload.pdf_exists) : false,
+            email_sent: payload.email_sent !== undefined ? toBoolean(payload.email_sent) : false
         };
 
         console.log('Prepared database record:', JSON.stringify(dbRecord));
@@ -153,6 +153,11 @@ const handler = async (event) => {
         }
         if (data.email_bounced === true) {
             warnings.push('email_bounced is true');
+        }
+
+        // Check if order_detail was provided as false (indicating order detail failed)
+        if (orderDetails === false) {
+            warnings.push('order_detail is false');
         }
 
         // Build response
