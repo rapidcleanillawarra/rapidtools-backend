@@ -638,7 +638,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
 
     if (backorderRows) {
       backorderSection = `
-        <div style="margin-top: 30px;">
+        <div style="margin-top: 30px; page-break-before: always;">
            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
              <tr>
                <td style="background-color: #222; padding: 10px 15px; border-radius: 4px;">
