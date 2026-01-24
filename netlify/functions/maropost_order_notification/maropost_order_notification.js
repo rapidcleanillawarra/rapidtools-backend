@@ -462,6 +462,24 @@ const formatCurrency = (amount) => {
   return `$${Number(amount).toFixed(2)}`;
 };
 
+// Helper function to format date for folder name (january_24_2026)
+const formatFolderDate = (date = new Date()) => {
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                      'july', 'august', 'september', 'october', 'november', 'december'];
+  const day = date.getDate();
+  const month = monthNames[date.getMonth()];
+  const year = date.getFullYear();
+  return `${month}_${day}_${year}`;
+};
+
+// Helper function to format date for file name (24_01_2026)
+const formatFileNameDate = (date = new Date()) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}_${month}_${year}`;
+};
+
 // Helper function to format country code
 const formatCountry = (countryCode) => {
   if (!countryCode) return 'Australia';
@@ -1390,6 +1408,10 @@ const handler = async (event) => {
         headers,
         body: JSON.stringify({
           order_id: payload.OrderID,
+          customer_username: orderDetails?.Order?.[0]?.Username || '',
+          folder_name: `Sent Invoices/${formatFolderDate()}`,
+          file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}`,
+          created_by: 'Power Automate',
           email_html: htmlEmail || null,
           pdf_html: taxInvoiceHtml || null
         }),
