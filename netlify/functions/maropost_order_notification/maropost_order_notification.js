@@ -12,7 +12,7 @@ const escapeHtml = (text) => {
 };
 
 // Generate HTML email template for dispatched orders
-const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorders, accountUrl = 'https://www.rapidsupplies.com.au/_myacct') => {
+const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorders, documentId, accountUrl = 'https://www.rapidsupplies.com.au/_myacct') => {
   // Extract order data
   const order = orderDetails?.Order?.[0];
   if (!order) {
@@ -424,6 +424,9 @@ const generateDispatchEmailHTML = (orderDetails, productImages, relatedBackorder
               <p style="margin:0;font-size:13px;color:#777;text-align:center;">
                 Thank you for choosing <strong style="color:#80BB3D;">RapidClean Illawarra</strong>
               </p>
+              <p style="margin:10px 0 0;font-size:11px;color:#999;text-align:center;">
+                Document ID: ${escapeHtml(documentId)}
+              </p>
             </td>
           </tr>
           
@@ -460,6 +463,19 @@ const formatInvoiceDate = (dateStr) => {
 const formatCurrency = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '$0.00';
   return `$${Number(amount).toFixed(2)}`;
+};
+
+// Helper function to generate UUID
+const generateDocumentId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback UUID generation for older environments
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 // Helper function to format date for folder name (january_24_2026)
@@ -532,7 +548,7 @@ const formatBillAddress = (order) => {
 };
 
 // Generate HTML template for Tax Invoice PDF
-const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) => {
+const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, documentId) => {
   // Extract order data
   const order = orderDetails?.Order?.[0];
   if (!order) {
@@ -873,6 +889,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
       </table>
       <div style="margin-top: 30px; text-align: center; color: #777; font-size: 12px;">
           <p>Thank you for your business!</p>
+          <p style="margin: 8px 0 0; font-size: 10px; color: #999;">Document ID: ${escapeHtml(documentId)}</p>
       </div>
     </div>
 
@@ -949,6 +966,9 @@ const handler = async (event) => {
         joeven_test: true // Preserve test flag
       };
     }
+
+    // Generate unique document ID for this request
+    const documentId = generateDocumentId();
 
     // Validate required fields
     const requiredFields = ['CurrentTime', 'EventID', 'EventType', 'OrderID', 'OrderStatus'];
@@ -1248,6 +1268,7 @@ const handler = async (event) => {
           message: 'Order notification received but not processed',
           reason: `Order status is "${payload.OrderStatus}", only "Dispatch" and "Dispatched" orders are processed`,
           order_id: payload.OrderID,
+          document_id: documentId,
           order_status: payload.OrderStatus,
           processed: false,
           order_details_fetched: orderDetails !== null,
@@ -1264,7 +1285,7 @@ const handler = async (event) => {
     let htmlEmail = null;
     if (orderDetails && (['Dispatch', 'Dispatched'].includes(payload.OrderStatus) || payload.joeven_test)) {
       try {
-        htmlEmail = generateDispatchEmailHTML(orderDetails, productImages, relatedBackorders);
+        htmlEmail = generateDispatchEmailHTML(orderDetails, productImages, relatedBackorders, documentId);
         console.log('HTML email template generated successfully');
       } catch (htmlError) {
         console.error('Failed to generate HTML email template:', {
@@ -1279,7 +1300,7 @@ const handler = async (event) => {
     let taxInvoiceHtml = null;
     if (orderDetails && (payload.Display === 'pdf' || payload.Display === 'data')) {
       try {
-        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders);
+        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders, documentId);
         console.log('Tax Invoice HTML template generated successfully');
       } catch (invoiceError) {
         console.error('Failed to generate Tax Invoice HTML template:', {
@@ -1412,6 +1433,7 @@ const handler = async (event) => {
         headers,
         body: JSON.stringify({
           order_id: payload.OrderID,
+          document_id: documentId,
           customer_username: orderDetails?.Order?.[0]?.Username || '',
           folder_name: `Sent Invoices/${formatFolderDate()}`,
           file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}`,
@@ -1429,6 +1451,7 @@ const handler = async (event) => {
       body: JSON.stringify({
         message: 'Order notification processed successfully',
         order_id: payload.OrderID,
+        document_id: documentId,
         order_status: payload.OrderStatus,
         event_id: payload.EventID,
         display_mode: payload.Display || 'json',
