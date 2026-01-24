@@ -558,8 +558,17 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
   // GST is calculated on product subtotal + shipping costs (before discounts)
   const gst = (productSubtotal + shippingTotal) * 0.10;
   const grandTotal = productSubtotal + shippingTotal + gst - shippingDiscount;
-  const amountPaid = 0; // Static for now
-  const balanceDue = grandTotal - amountPaid;
+
+  // Calculate total amount paid from OrderPayment array
+  const amountPaid = (order.OrderPayment || []).reduce((total, payment) => {
+    return total + parseFloat(payment.Amount || 0);
+  }, 0);
+
+  // Determine payment terms - if fully paid, show "Paid", otherwise use original terms
+  const paymentTerms = order.PaymentTerms || 'Due 30 days after EOM';
+  const finalPaymentTerms = amountPaid >= grandTotal ? 'Paid' : paymentTerms;
+
+  const balanceDue = Math.max(0, grandTotal - amountPaid);
 
   // Format addresses
   const shipAddressLines = formatShipAddress(order);
@@ -570,9 +579,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
   const datePlaced = formatInvoiceDate(order.DatePlaced);
   const dateInvoiced = formatInvoiceDate(order.DateInvoiced);
 
-  // Payment terms
-  const paymentTerms = order.PaymentTerms || 'Due 30 days after EOM';
-  const paymentTermsText = paymentTerms.includes('EOM') ? 'Due 30 days after EOM' : paymentTerms;
+  // Payment terms - use finalPaymentTerms which considers if order is fully paid
+  const paymentTermsText = finalPaymentTerms.includes('EOM') ? 'Due 30 days after EOM' : finalPaymentTerms;
 
   // Generate order line items table rows
   let orderItemsRows = '';
@@ -802,8 +810,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right;">${formatCurrency(amountPaid)}</td>
             </tr>
             <tr>
-               <td style="padding: 10px 0; color: #80BB3D; font-size: 18px; font-weight: 700; text-align: right;">Balance Due:</td>
-               <td style="padding: 10px 0 10px 15px; color: #80BB3D; font-size: 18px; font-weight: 700; text-align: right;">${formatCurrency(balanceDue)}</td>
+               <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Balance Due:</td>
+               <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
             </tr>
           </table>
         </td>
@@ -945,7 +953,8 @@ const handler = async (event) => {
             "DatePaymentDue",
             "ShippingOption",
             "ShippingTotal",
-            "ShippingDiscount"
+            "ShippingDiscount",
+            "OrderPayment"
           ]
         },
         "action": "GetOrder"
