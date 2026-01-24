@@ -513,7 +513,11 @@ const formatShipAddress = (order) => {
 const formatBillAddress = (order) => {
   const parts = [];
   if (order.BillStreetLine1) {
-    parts.push(order.BillStreetLine1);
+    const streetParts = [order.BillStreetLine1];
+    if (order.BillStreetLine2) {
+      streetParts.push(order.BillStreetLine2);
+    }
+    parts.push(streetParts.join(', '));
   }
   const cityStatePostcode = [
     order.BillCity,
