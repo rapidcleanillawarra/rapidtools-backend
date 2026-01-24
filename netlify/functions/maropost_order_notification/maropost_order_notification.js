@@ -859,9 +859,9 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders) 
                 <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display: block; margin-bottom: 15px;">
                   <img src="{{STRIPE_QR}}" alt="Stripe Payment QR" style="width: 140px; height: 140px; border: 1px solid #eee; padding: 4px; background: #fff; display: block; margin-left: auto; margin-right: auto;">
                 </a>
-                <a href="{{STRIPE_QR}}" style="background-color: #80BB3D; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-weight: 600; font-size: 14px; display: inline-block; margin-bottom: 10px;">Pay Online</a>
+                <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="background-color: #80BB3D; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-weight: 600; font-size: 14px; display: inline-block; margin-bottom: 10px;">Pay Online</a>
                 <div style="font-size: 11px; color: #666; word-break: break-all;">
-                  <a href="{{STRIPE_QR}}" style="color: #666; text-decoration: underline;">https://buy.stripe.com/dRm9AUexncD0fQacewaZi00</a>
+                  <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="color: #666; text-decoration: underline;">https://buy.stripe.com/dRm9AUexncD0fQacewaZi00</a>
                 </div>
               </div>
           </td>
