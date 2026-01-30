@@ -471,7 +471,7 @@ const generateDocumentId = () => {
     return crypto.randomUUID();
   }
   // Fallback UUID generation for older environments
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -1261,32 +1261,9 @@ const handler = async (event) => {
       // Continue processing even if image fetch fails
     }
 
-    // Check if OrderStatus is "Dispatch" or "Dispatched" - only process dispatch notifications (unless testing)
-    if (!['Dispatch', 'Dispatched'].includes(payload.OrderStatus) && !payload.joeven_test) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          message: 'Order notification received but not processed',
-          reason: `Order status is "${payload.OrderStatus}", only "Dispatch" and "Dispatched" orders are processed`,
-          order_id: payload.OrderID,
-          document_id: documentId,
-          customer_email: orderDetails?.Order?.[0]?.Email || '',
-          order_status: payload.OrderStatus,
-          processed: false,
-          order_details_fetched: orderDetails !== null,
-          order_details: orderDetails,
-          related_backorders_fetched: relatedBackorders !== null,
-          related_backorders: relatedBackorders,
-          product_images_fetched: productImages !== null,
-          product_images: productImages
-        }),
-      };
-    }
-
     // Generate HTML email template for dispatch notifications (or when testing)
     let htmlEmail = null;
-    if (orderDetails && (['Dispatch', 'Dispatched'].includes(payload.OrderStatus) || payload.joeven_test)) {
+    if (orderDetails) {
       try {
         htmlEmail = generateDispatchEmailHTML(orderDetails, productImages, relatedBackorders, documentId);
         console.log('HTML email template generated successfully');
