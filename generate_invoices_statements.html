@@ -437,10 +437,22 @@
         invoicesButton.addEventListener('click', async () => {
             // Get selected customers
             const selectedCheckboxes = document.querySelectorAll('.customer-checkbox:checked');
-            const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.dataset.username);
+            console.log('Selected checkboxes found:', selectedCheckboxes.length);
+
+            const selectedUsernamesRaw = Array.from(selectedCheckboxes).map(cb => {
+                const username = cb.dataset.username;
+                console.log('Checkbox dataset.username:', username, 'element:', cb);
+                return username;
+            });
+
+            const selectedUsernames = selectedUsernamesRaw
+                .filter(username => username && username !== 'N/A'); // Filter out invalid usernames
+
+            console.log('Selected usernames before filtering:', selectedUsernamesRaw);
+            console.log('Selected usernames after filtering:', selectedUsernames);
 
             if (selectedUsernames.length === 0) {
-                errorText.textContent = 'Please select at least one customer to get invoices.';
+                errorText.textContent = 'Please select at least one valid customer to get invoices.';
                 errorMessage.style.display = 'block';
                 return;
             }
@@ -452,24 +464,31 @@
             invoicesButton.textContent = 'Getting Invoices...';
 
             try {
+                const requestPayload = {
+                    action: 'invoices',
+                    customers: selectedUsernames,
+                    limit: 5
+                };
+                console.log('Sending request payload:', requestPayload);
+
                 // Call the Netlify function with invoices action
                 const response = await fetch('/.netlify/functions/generate_invoices_statements', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        action: 'invoices',
-                        customers: selectedUsernames,
-                        limit: 5
-                    })
+                    body: JSON.stringify(requestPayload)
                 });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
+                console.log('Response data:', data);
 
                 if (!data.success) {
                     throw new Error(data.error || 'Unknown error occurred');
@@ -520,7 +539,7 @@
 
                 return `
                     <tr>
-                        <td><input type="checkbox" class="customer-checkbox" data-username="${username}"></td>
+                        <td><input type="checkbox" class="customer-checkbox" data-username="${username.replace(/"/g, '&quot;')}"></td>
                         <td>
                             <a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(username)}"
                                target="_blank" class="username-link">${username}</a>

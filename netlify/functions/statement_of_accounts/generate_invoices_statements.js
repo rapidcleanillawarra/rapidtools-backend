@@ -64,25 +64,35 @@ const handler = async (event) => {
     try {
         // Parse request body
         let requestBody = {};
+        console.log('Raw event.body:', event.body);
+        console.log('event.body type:', typeof event.body);
+        console.log('event.body length:', event.body ? event.body.length : 0);
+
         if (event.body) {
             try {
                 requestBody = JSON.parse(event.body);
+                console.log('Parsed request body successfully:', requestBody);
             } catch (parseError) {
                 console.error('Failed to parse request body:', parseError);
+                console.error('Raw body content:', event.body);
                 return {
                     statusCode: 400,
                     headers,
                     body: JSON.stringify({
                         success: false,
                         error: 'Invalid JSON in request body',
-                        message: 'Request body must be valid JSON'
+                        message: 'Request body must be valid JSON',
+                        raw_body: event.body
                     })
                 };
             }
+        } else {
+            console.log('No request body provided');
         }
 
         const { action } = requestBody;
         console.log('Request action:', action);
+        console.log('Full request body:', JSON.stringify(requestBody, null, 2));
 
         // Validate Supabase initialization
         console.log('Validating Supabase connection...');
@@ -157,6 +167,8 @@ const handler = async (event) => {
         } else if (action === 'invoices') {
             const { limit = 10, customers = [] } = requestBody;
 
+            console.log('Invoices action - customers received:', customers);
+
             // Validate customers array
             if (!Array.isArray(customers) || customers.length === 0) {
                 return {
@@ -170,10 +182,29 @@ const handler = async (event) => {
                 };
             }
 
+            // Filter out invalid usernames
+            const validCustomers = customers.filter(username =>
+                username && typeof username === 'string' && username.trim() !== '' && username !== 'N/A'
+            );
+
+            console.log('Valid customers after filtering:', validCustomers);
+
+            if (validCustomers.length === 0) {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'No valid customers',
+                        message: 'All provided usernames were invalid or N/A'
+                    })
+                };
+            }
+
             const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
 
             // Fetch orders for specified customers
-            console.log(`Fetching orders for customers: ${customers.join(', ')} with limit: ${limit}`);
+            console.log(`Fetching orders for customers: ${validCustomers.join(', ')} with limit: ${limit}`);
 
             let ordersApiResponse;
 
@@ -185,7 +216,7 @@ const handler = async (event) => {
                     },
                     body: JSON.stringify({
                         Filter: {
-                            Username: customers, // Filter by specific usernames
+                            Username: validCustomers, // Filter by specific usernames
                             OrderStatus: ['Dispatched'],
                             PaymentStatus: ['Pending', 'PartialPaid'],
                             OutputSelector: [
@@ -302,6 +333,7 @@ const handler = async (event) => {
                     customers: resultCustomers,
                     limit: limit,
                     requested_customers: customers,
+                    valid_customers: validCustomers,
                     timestamp
                 })
             };
