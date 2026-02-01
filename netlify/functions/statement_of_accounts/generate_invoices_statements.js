@@ -17,6 +17,35 @@ const filterCustomersByBalance = (customers) => {
 };
 
 /**
+ * Format customer name from BillingAddress
+ * @param {Object} billingAddress - BillingAddress object from API
+ * @returns {string} Formatted customer name: "BillFirstName BillLastName (BillCompany)"
+ */
+const formatCustomerNameFromBillingAddress = (billingAddress) => {
+    if (!billingAddress) {
+        return null;
+    }
+
+    const firstName = billingAddress.BillFirstName || '';
+    const lastName = billingAddress.BillLastName || '';
+    const company = billingAddress.BillCompany || '';
+
+    // Format: "BillFirstName BillLastName (BillCompany)"
+    const nameParts = [firstName, lastName].filter(part => part && part.trim() !== '');
+    const fullName = nameParts.join(' ');
+
+    if (company && fullName) {
+        return `${fullName} (${company})`;
+    } else if (fullName) {
+        return fullName;
+    } else if (company) {
+        return company;
+    }
+
+    return null;
+};
+
+/**
  * Generate Invoices Statements - Fetch Customer Data and Invoices
  *
  * This function accepts different payload actions:
@@ -147,7 +176,17 @@ const handler = async (event) => {
 
             // Filter out customers with negative or zero account balance (only include positive balances)
             const filteredCustomers = filterCustomersByBalance(allCustomers);
-            console.log(`After filtering: ${filteredCustomers.length} customers remaining (removed ${allCustomers.length - filteredCustomers.length} with negative or zero balance)`);
+            
+            // Add pdf_customer_name field to each customer based on BillingAddress
+            const customersWithPdfName = filteredCustomers.map(customer => {
+                const pdfCustomerName = formatCustomerNameFromBillingAddress(customer.BillingAddress);
+                return {
+                    ...customer,
+                    pdf_customer_name: pdfCustomerName
+                };
+            });
+            
+            console.log(`After filtering: ${customersWithPdfName.length} customers remaining (removed ${allCustomers.length - customersWithPdfName.length} with negative or zero balance)`);
 
             const timestamp = new Date().toISOString();
 
@@ -159,8 +198,8 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: true,
                     message: 'Customer data fetched successfully',
-                    customers: filteredCustomers,
-                    total_customers: filteredCustomers.length,
+                    customers: customersWithPdfName,
+                    total_customers: customersWithPdfName.length,
                     timestamp
                 })
             };
@@ -225,7 +264,8 @@ const handler = async (event) => {
                                 'Email',
                                 'GrandTotal',
                                 'OrderPayment',
-                                'DatePaymentDue'
+                                'DatePaymentDue',
+                                'BillingAddress'
                             ]
                         },
                         action: 'GetOrder'
@@ -273,9 +313,16 @@ const handler = async (event) => {
                 if (!username || !customers.includes(username)) return;
 
                 if (!customersWithInvoices[username]) {
+                    // Extract BillingAddress from the order
+                    const billingAddress = order.BillingAddress || {};
+                    // Format customer name from BillingAddress
+                    const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress);
+
                     customersWithInvoices[username] = {
                         customer_username: username,
                         email: order.Email || '',
+                        billing_address: billingAddress,
+                        pdf_customer_name: pdfCustomerName,
                         total_orders: 0,
                         total_balance: 0,
                         due_invoice_balance: 0,

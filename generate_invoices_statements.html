@@ -602,9 +602,40 @@
             }
         });
 
+        // Helper function to format customer name from BillingAddress
+        function formatCustomerName(customer) {
+            // Use pdf_customer_name if available (from server-side formatting)
+            if (customer.pdf_customer_name) {
+                return customer.pdf_customer_name;
+            }
+            
+            // Fallback: format from BillingAddress client-side
+            const billingAddress = customer.BillingAddress;
+            if (billingAddress) {
+                const firstName = billingAddress.BillFirstName || '';
+                const lastName = billingAddress.BillLastName || '';
+                const company = billingAddress.BillCompany || '';
+                
+                // Format: "BillFirstName BillLastName (BillCompany)"
+                const nameParts = [firstName, lastName].filter(part => part.trim() !== '');
+                const fullName = nameParts.join(' ');
+                
+                if (company && fullName) {
+                    return `${fullName} (${company})`;
+                } else if (fullName) {
+                    return fullName;
+                } else if (company) {
+                    return company;
+                }
+            }
+            
+            // Fallback to customer_username or company_name
+            return customer.company_name || customer.customer_username || 'Customer';
+        }
+
         // Generate HTML statement template for a customer (client-side version)
         function generateStatementHTML(customer, orders) {
-            const customerName = customer.company_name || customer.customer_username;
+            const customerName = formatCustomerName(customer);
             const totalInvoices = customer.total_orders || orders.length;
             const totalBalance = customer.total_balance ? customer.total_balance.toFixed(2) : '0.00';
             const dueInvoiceBalance = customer.due_invoice_balance ? customer.due_invoice_balance.toFixed(2) : '0.00';
