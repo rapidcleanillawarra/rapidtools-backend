@@ -3,7 +3,7 @@ const { supabase } = require('../utils/supabaseInit');
 /**
  * Filter customers by account balance
  * @param {Array} customers - Array of customer objects from API
- * @returns {Array} Filtered array of customers with AccountBalance != 0 (includes negative and positive balances)
+ * @returns {Array} Filtered array of customers with AccountBalance > 0 (excludes negative balances)
  */
 const filterCustomersByBalance = (customers) => {
     if (!Array.isArray(customers)) {
@@ -12,7 +12,7 @@ const filterCustomersByBalance = (customers) => {
 
     return customers.filter(customer => {
         const balance = parseFloat(customer.AccountBalance || 0);
-        return balance !== 0;
+        return balance > 0;
     });
 };
 
@@ -108,9 +108,9 @@ const handler = async (event) => {
 
         console.log(`Fetched ${allCustomers.length} customers from API`);
 
-        // Filter out customers with zero account balance (include negative and positive balances)
+        // Filter out customers with negative or zero account balance (only include positive balances)
         const filteredCustomers = filterCustomersByBalance(allCustomers);
-        console.log(`After filtering: ${filteredCustomers.length} customers remaining (removed ${allCustomers.length - filteredCustomers.length} with zero balance)`);
+        console.log(`After filtering: ${filteredCustomers.length} customers remaining (removed ${allCustomers.length - filteredCustomers.length} with negative or zero balance)`);
 
         const timestamp = new Date().toISOString();
 
