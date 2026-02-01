@@ -313,18 +313,17 @@
     <div class="container">
         <div class="header">
             <h1>Generate Invoices Statements</h1>
-            <p>Customer Data Viewer - Fetch and display customer information from the API</p>
+            <p>Customer Data Viewer - Display customer information from the API</p>
         </div>
 
         <div class="content">
             <div class="action-section">
                 <div class="action-buttons">
-                    <button id="runButton" class="run-button">Fetch Customer Data</button>
                     <button id="invoicesButton" class="invoices-button">Get Invoices</button>
                 </div>
             </div>
 
-            <div id="loading" class="loading">
+            <div id="loading" class="loading" style="display: block;">
                 <div class="spinner"></div>
                 <p>Fetching customer data...</p>
             </div>
@@ -372,7 +371,6 @@
     </div>
 
     <script>
-        const runButton = document.getElementById('runButton');
         const invoicesButton = document.getElementById('invoicesButton');
         const selectAllCheckbox = document.getElementById('selectAllCheckbox');
         const loading = document.getElementById('loading');
@@ -392,14 +390,12 @@
             });
         });
 
-        runButton.addEventListener('click', async () => {
+        async function loadCustomerData() {
             // Reset UI
             errorMessage.style.display = 'none';
             results.style.display = 'none';
             invoicesSection.style.display = 'none';
             loading.style.display = 'block';
-            runButton.disabled = true;
-            runButton.textContent = 'Fetching...';
 
             try {
                 // Call the Netlify function
@@ -408,6 +404,9 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    body: JSON.stringify({
+                        action: 'customers_only'
+                    })
                 });
 
                 if (!response.ok) {
@@ -429,10 +428,8 @@
                 errorMessage.style.display = 'block';
             } finally {
                 loading.style.display = 'none';
-                runButton.disabled = false;
-                runButton.textContent = 'Fetch Customer Data';
             }
-        });
+        }
 
         invoicesButton.addEventListener('click', async () => {
             // Get selected customers
@@ -625,10 +622,10 @@
             invoicesSection.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Auto-run on page load for development (uncomment if needed)
-        // if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        //     runButton.click();
-        // }
+        // Load customer data automatically on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCustomerData();
+        });
     </script>
 </body>
 </html>
