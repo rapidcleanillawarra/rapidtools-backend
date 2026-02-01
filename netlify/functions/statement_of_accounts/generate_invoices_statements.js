@@ -17,11 +17,13 @@ const filterCustomersByBalance = (customers) => {
 };
 
 /**
- * Generate Invoices Statements - Fetch Customer Data
+ * Generate Invoices Statements - Fetch Customer Data and Invoices
  *
- * This function accepts a payload with action "customers_only" and fetches customer data
- * from Power Automate API, filtering out customers with negative or zero account balances.
- * Returns filtered customer data with positive balances only.
+ * This function accepts different payload actions:
+ * - "customers_only": Fetches customer data from Power Automate API, filtering out customers
+ *   with negative or zero account balances. Returns filtered customer data with positive balances only.
+ * - "invoices": Fetches invoices/orders for specified customers with optional limit.
+ *   Returns customers with their outstanding invoices (Dispatched orders with Pending/PartialPaid status).
  */
 
 const handler = async (event) => {
@@ -152,6 +154,157 @@ const handler = async (event) => {
                     timestamp
                 })
             };
+        } else if (action === 'invoices') {
+            const { limit = 10, customers = [] } = requestBody;
+
+            // Validate customers array
+            if (!Array.isArray(customers) || customers.length === 0) {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Invalid customers parameter',
+                        message: 'customers must be a non-empty array of usernames'
+                    })
+                };
+            }
+
+            const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+
+            // Fetch orders for specified customers
+            console.log(`Fetching orders for customers: ${customers.join(', ')} with limit: ${limit}`);
+
+            let ordersApiResponse;
+
+            try {
+                ordersApiResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        Filter: {
+                            Username: customers, // Filter by specific usernames
+                            OrderStatus: ['Dispatched'],
+                            PaymentStatus: ['Pending', 'PartialPaid'],
+                            OutputSelector: [
+                                'ID',
+                                'Username',
+                                'Email',
+                                'GrandTotal',
+                                'OrderPayment',
+                                'DatePaymentDue'
+                            ]
+                        },
+                        action: 'GetOrder'
+                    })
+                });
+            } catch (fetchError) {
+                console.error('Orders API fetch error:', fetchError);
+                throw new Error(`Failed to fetch orders from Power Automate API: ${fetchError.message}`);
+            }
+
+            // Process orders response
+            if (!ordersApiResponse.ok) {
+                throw new Error(`Orders API request failed with status ${ordersApiResponse.status}`);
+            }
+
+            const ordersApiData = await ordersApiResponse.json();
+            let orders = ordersApiData?.Order || [];
+
+            console.log(`Fetched ${orders.length} orders from API`);
+
+            // Filter orders by outstanding amount (similar to check_existing_customer_statement.js)
+            orders = orders.filter(order => {
+                const grandTotal = parseFloat(order.GrandTotal || 0);
+                const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+                    ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+                    : 0;
+                const outstandingAmount = grandTotal - paymentsSum;
+
+                // Filter out orders where grandtotal is 0 and outstanding amount ≤ $0.01
+                if (grandTotal === 0 && outstandingAmount <= 0.01) {
+                    return false;
+                }
+                return true;
+            });
+
+            console.log(`After filtering: ${orders.length} orders remaining`);
+
+            // Group orders by customer and apply limit
+            const customersWithInvoices = {};
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to start of day for date comparison
+
+            orders.forEach(order => {
+                const username = order.Username;
+                if (!username || !customers.includes(username)) return;
+
+                if (!customersWithInvoices[username]) {
+                    customersWithInvoices[username] = {
+                        customer_username: username,
+                        email: order.Email || '',
+                        total_orders: 0,
+                        total_balance: 0,
+                        due_invoice_balance: 0,
+                        invoices: []
+                    };
+                }
+
+                const grandTotal = parseFloat(order.GrandTotal || 0);
+                const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+                    ? order.OrderPayment.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0)
+                    : 0;
+                const outstandingAmount = grandTotal - paymentsSum;
+
+                // Check if order is past due
+                let isPastDue = false;
+                if (order.DatePaymentDue) {
+                    const dueDate = new Date(order.DatePaymentDue);
+                    dueDate.setHours(0, 0, 0, 0);
+                    isPastDue = dueDate < today;
+                }
+
+                customersWithInvoices[username].total_orders += 1;
+                customersWithInvoices[username].total_balance += outstandingAmount;
+
+                if (isPastDue) {
+                    customersWithInvoices[username].due_invoice_balance += outstandingAmount;
+                }
+
+                customersWithInvoices[username].invoices.push({
+                    id: order.ID,
+                    grandTotal: grandTotal,
+                    payments: order.OrderPayment || [],
+                    outstandingAmount: outstandingAmount,
+                    datePaymentDue: order.DatePaymentDue || null,
+                    isPastDue: isPastDue
+                });
+            });
+
+            // Apply limit to invoices per customer and convert to array
+            const resultCustomers = Object.values(customersWithInvoices).map(customer => ({
+                ...customer,
+                invoices: customer.invoices.slice(0, limit)
+            }));
+
+            console.log(`Returning ${resultCustomers.length} customers with their invoices`);
+
+            const timestamp = new Date().toISOString();
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Customer invoices fetched successfully',
+                    customers: resultCustomers,
+                    limit: limit,
+                    requested_customers: customers,
+                    timestamp
+                })
+            };
         } else {
             // Handle unsupported actions
             return {
@@ -160,7 +313,7 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: false,
                     error: 'Invalid action',
-                    message: 'Supported action: "customers_only"'
+                    message: 'Supported actions: "customers_only", "invoices"'
                 })
             };
         }
