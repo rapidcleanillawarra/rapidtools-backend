@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Invoices Statements - Customer Data Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .action-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .run-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .run-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        .run-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .stats-section {
+            margin-bottom: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-card .neutral { color: #3b82f6; }
+
+        .customers-section {
+            margin-top: 30px;
+        }
+
+        .customers-section h2 {
+            margin-bottom: 20px;
+            color: #1e293b;
+            font-size: 1.5rem;
+        }
+
+        .customers-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        .customers-table th,
+        .customers-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .customers-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #d1d5db;
+        }
+
+        .customers-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .balance-positive {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .balance-negative {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .balance-zero {
+            color: #6b7280;
+        }
+
+        .username-link {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .username-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Generate Invoices Statements</h1>
+            <p>Customer Data Viewer - Fetch and display customer information from the API</p>
+        </div>
+
+        <div class="content">
+            <div class="action-section">
+                <button id="runButton" class="run-button">Fetch Customer Data</button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Fetching customer data...</p>
+            </div>
+
+            <div id="errorMessage" class="error-message">
+                <p id="errorText">An error occurred</p>
+            </div>
+
+            <div id="results" class="results">
+                <div class="stats-section">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Total Customers</h3>
+                            <div class="value neutral" id="totalCustomers">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="customers-section">
+                    <h2>Customer Data</h2>
+                    <table class="customers-table" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Username</th>
+                                <th style="width: 30%;">Email</th>
+                                <th style="width: 30%;">Company Name</th>
+                                <th style="width: 15%;">Account Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <!-- Customer data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const runButton = document.getElementById('runButton');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const results = document.getElementById('results');
+        const totalCustomers = document.getElementById('totalCustomers');
+        const customersTableBody = document.getElementById('customersTableBody');
+
+        runButton.addEventListener('click', async () => {
+            // Reset UI
+            errorMessage.style.display = 'none';
+            results.style.display = 'none';
+            loading.style.display = 'block';
+            runButton.disabled = true;
+            runButton.textContent = 'Fetching...';
+
+            try {
+                // Call the Netlify function
+                const response = await fetch('/.netlify/functions/generate_invoices_statements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+
+                // Update UI with results
+                updateResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorText.textContent = error.message;
+                errorMessage.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                runButton.disabled = false;
+                runButton.textContent = 'Fetch Customer Data';
+            }
+        });
+
+        function updateResults(data) {
+            // Update total customers count
+            totalCustomers.textContent = data.total_customers || 0;
+
+            // Update customers table
+            if (!data.customers || data.customers.length === 0) {
+                customersTableBody.innerHTML = '<tr><td colspan="4" class="no-data">No customer data available</td></tr>';
+                return;
+            }
+
+            // Sort customers by username for consistent display
+            const sortedCustomers = [...data.customers].sort((a, b) =>
+                a.Username.localeCompare(b.Username)
+            );
+
+            customersTableBody.innerHTML = sortedCustomers.map(customer => {
+                const username = customer.Username || 'N/A';
+                const email = customer.EmailAddress || 'N/A';
+                const companyName = customer.BillingAddress?.BillCompany || 'N/A';
+                const balance = parseFloat(customer.AccountBalance || 0);
+
+                // Determine balance class based on value
+                let balanceClass = 'balance-zero';
+                if (balance > 0) balanceClass = 'balance-positive';
+                else if (balance < 0) balanceClass = 'balance-negative';
+
+                return `
+                    <tr>
+                        <td>
+                            <a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(username)}"
+                               target="_blank" class="username-link">${username}</a>
+                        </td>
+                        <td>${email}</td>
+                        <td>${companyName}</td>
+                        <td>
+                            <span class="${balanceClass}">$${balance.toFixed(2)}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            results.style.display = 'block';
+        }
+
+        // Auto-run on page load for development (uncomment if needed)
+        // if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        //     runButton.click();
+        // }
+    </script>
+</body>
+</html>
