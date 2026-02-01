@@ -165,7 +165,7 @@ const handler = async (event) => {
                 })
             };
         } else if (action === 'invoices') {
-            const { limit = 10, customers = [] } = requestBody;
+            const { customers = [] } = requestBody;
 
             console.log('Invoices action - customers received:', customers);
 
@@ -204,7 +204,7 @@ const handler = async (event) => {
             const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
 
             // Fetch orders for specified customers
-            console.log(`Fetching orders for customers: ${validCustomers.join(', ')} with limit: ${limit}`);
+            console.log(`Fetching orders for customers: ${validCustomers.join(', ')}`);
 
             let ordersApiResponse;
 
@@ -314,10 +314,10 @@ const handler = async (event) => {
                 });
             });
 
-            // Apply limit to invoices per customer and convert to array
+            // Convert to array (no limit applied)
             const resultCustomers = Object.values(customersWithInvoices).map(customer => ({
                 ...customer,
-                invoices: customer.invoices.slice(0, limit)
+                invoices: customer.invoices
             }));
 
             console.log(`Returning ${resultCustomers.length} customers with their invoices`);
@@ -331,7 +331,6 @@ const handler = async (event) => {
                     success: true,
                     message: 'Customer invoices fetched successfully',
                     customers: resultCustomers,
-                    limit: limit,
                     requested_customers: customers,
                     valid_customers: validCustomers,
                     timestamp
