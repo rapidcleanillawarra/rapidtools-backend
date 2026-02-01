@@ -607,6 +607,8 @@
             const customerName = customer.company_name || customer.customer_username;
             const totalInvoices = customer.total_orders || orders.length;
             const totalBalance = customer.total_balance ? customer.total_balance.toFixed(2) : '0.00';
+            const dueInvoiceBalance = customer.due_invoice_balance ? customer.due_invoice_balance.toFixed(2) : '0.00';
+            const grandTotal = totalBalance;
             const printedDate = new Date().toLocaleString('en-US', {
                 month: 'numeric',
                 day: 'numeric',
@@ -776,6 +778,18 @@
                             text-align: right;
                             min-width: 120px;
                         }
+                        .balance-due-row td {
+                            background: #fef2f2 !important;
+                        }
+                        .balance-due-label {
+                            color: #dc2626;
+                            font-size: 22px;
+                            letter-spacing: 2px;
+                        }
+                        .balance-due-value {
+                            color: #dc2626;
+                            font-size: 28px;
+                        }
                         @media print {
                             body {
                                 margin: 0;
@@ -849,8 +863,12 @@
                             </tbody>
                             <tfoot>
                                 <tr class="summary-row">
-                                    <td colspan="5" class="summary-label">BALANCE DUE AUD</td>
-                                    <td class="summary-value right">$${totalBalance}</td>
+                                    <td colspan="5" class="summary-label">GRAND TOTAL AUD</td>
+                                    <td class="summary-value right">${grandTotal}</td>
+                                </tr>
+                                <tr class="summary-row balance-due-row">
+                                    <td colspan="5" class="summary-label balance-due-label">BALANCE DUE AUD</td>
+                                    <td class="summary-value right balance-due-value">${dueInvoiceBalance}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -890,8 +908,8 @@
                                         <td style="padding-top: 10px;">${totalInvoices}</td>
                                     </tr>
                                     <tr>
-                                        <td style="font-weight: bold;">Total AUD Due</td>
-                                        <td>$${totalBalance}</td>
+                                        <td style="font-weight: bold;">Balance Due</td>
+                                        <td style="color: #dc2626; font-weight: bold;">${dueInvoiceBalance}</td>
                                     </tr>
                                     <tr>
                                         <td style="font-weight: bold; padding-top: 18px;">Amount Enclosed</td>
