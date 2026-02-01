@@ -456,7 +456,8 @@ const processCustomer = async (customer, statementCustomers) => {
         return {
             success: true,
             customer_username: customer.customer_username,
-            pdf_file_id: pdfFileRecord.id
+            pdf_file_id: pdfFileRecord.id,
+            pdf_html: htmlContent
         };
 
     } catch (error) {
@@ -464,7 +465,8 @@ const processCustomer = async (customer, statementCustomers) => {
         return {
             success: false,
             customer_username: customer.customer_username,
-            error: error.message
+            error: error.message,
+            pdf_html: null
         };
     }
 };
@@ -656,6 +658,7 @@ const handler = async (event) => {
                     failed_generations: result.success ? 0 : 1
                 },
                 result: result,
+                pdf_html: result.pdf_html,
                 timestamp: new Date().toISOString()
             })
         };
