@@ -56,6 +56,13 @@
             margin-bottom: 40px;
         }
 
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
         .run-button {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
@@ -75,6 +82,31 @@
         }
 
         .run-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .invoices-button {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .invoices-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        .invoices-button:disabled {
             background: #9ca3af;
             cursor: not-allowed;
             transform: none;
@@ -154,7 +186,62 @@
             margin-top: 30px;
         }
 
-        .customers-section h2 {
+        .customers-section h2,
+        .invoices-section h2 {
+            margin-bottom: 20px;
+            color: #1e293b;
+            font-size: 1.5rem;
+        }
+
+        .invoices-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .customer-invoices {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .customer-invoices h3 {
+            margin: 0 0 15px 0;
+            color: #1e293b;
+            font-size: 1.2rem;
+        }
+
+        .customer-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .summary-item .label {
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .invoices-section h2 {
             margin-bottom: 20px;
             color: #1e293b;
             font-size: 1.5rem;
@@ -209,6 +296,11 @@
             text-decoration: underline;
         }
 
+        .customer-checkbox {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -226,7 +318,10 @@
 
         <div class="content">
             <div class="action-section">
-                <button id="runButton" class="run-button">Fetch Customer Data</button>
+                <div class="action-buttons">
+                    <button id="runButton" class="run-button">Fetch Customer Data</button>
+                    <button id="invoicesButton" class="invoices-button">Get Invoices</button>
+                </div>
             </div>
 
             <div id="loading" class="loading">
@@ -253,9 +348,10 @@
                     <table class="customers-table" id="customersTable">
                         <thead>
                             <tr>
+                                <th style="width: 5%;"><input type="checkbox" id="selectAllCheckbox"></th>
                                 <th style="width: 25%;">Username</th>
                                 <th style="width: 30%;">Email</th>
-                                <th style="width: 30%;">Company Name</th>
+                                <th style="width: 25%;">Company Name</th>
                                 <th style="width: 15%;">Account Balance</th>
                             </tr>
                         </thead>
@@ -264,23 +360,43 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="invoices-section" id="invoicesSection" style="display: none;">
+                    <h2>Customer Invoices</h2>
+                    <div id="invoicesContainer">
+                        <!-- Invoice data will be populated here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         const runButton = document.getElementById('runButton');
+        const invoicesButton = document.getElementById('invoicesButton');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('errorMessage');
         const errorText = document.getElementById('errorText');
         const results = document.getElementById('results');
+        const invoicesSection = document.getElementById('invoicesSection');
+        const invoicesContainer = document.getElementById('invoicesContainer');
         const totalCustomers = document.getElementById('totalCustomers');
         const customersTableBody = document.getElementById('customersTableBody');
+
+        // Select All checkbox functionality
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.customer-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
+        });
 
         runButton.addEventListener('click', async () => {
             // Reset UI
             errorMessage.style.display = 'none';
             results.style.display = 'none';
+            invoicesSection.style.display = 'none';
             loading.style.display = 'block';
             runButton.disabled = true;
             runButton.textContent = 'Fetching...';
@@ -318,13 +434,71 @@
             }
         });
 
+        invoicesButton.addEventListener('click', async () => {
+            // Get selected customers
+            const selectedCheckboxes = document.querySelectorAll('.customer-checkbox:checked');
+            const selectedUsernames = Array.from(selectedCheckboxes).map(cb => cb.dataset.username);
+
+            if (selectedUsernames.length === 0) {
+                errorText.textContent = 'Please select at least one customer to get invoices.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            // Reset UI
+            errorMessage.style.display = 'none';
+            loading.style.display = 'block';
+            invoicesButton.disabled = true;
+            invoicesButton.textContent = 'Getting Invoices...';
+
+            try {
+                // Call the Netlify function with invoices action
+                const response = await fetch('/.netlify/functions/generate_invoices_statements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'invoices',
+                        customers: selectedUsernames,
+                        limit: 5
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+
+                // Update UI with invoice results
+                updateInvoicesResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorText.textContent = error.message;
+                errorMessage.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                invoicesButton.disabled = false;
+                invoicesButton.textContent = 'Get Invoices';
+            }
+        });
+
         function updateResults(data) {
+            // Reset invoices section when loading new customer data
+            invoicesSection.style.display = 'none';
+
             // Update total customers count
             totalCustomers.textContent = data.total_customers || 0;
 
             // Update customers table
             if (!data.customers || data.customers.length === 0) {
-                customersTableBody.innerHTML = '<tr><td colspan="4" class="no-data">No customer data available</td></tr>';
+                customersTableBody.innerHTML = '<tr><td colspan="5" class="no-data">No customer data available</td></tr>';
                 return;
             }
 
@@ -346,6 +520,7 @@
 
                 return `
                     <tr>
+                        <td><input type="checkbox" class="customer-checkbox" data-username="${username}"></td>
                         <td>
                             <a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(username)}"
                                target="_blank" class="username-link">${username}</a>
@@ -360,6 +535,76 @@
             }).join('');
 
             results.style.display = 'block';
+        }
+
+        function updateInvoicesResults(data) {
+            if (!data.customers || data.customers.length === 0) {
+                invoicesContainer.innerHTML = '<p class="no-data">No invoice data available for the selected customers.</p>';
+                invoicesSection.style.display = 'block';
+                return;
+            }
+
+            invoicesContainer.innerHTML = data.customers.map(customer => {
+                const invoicesHtml = customer.invoices && customer.invoices.length > 0
+                    ? customer.invoices.map(invoice => `
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin-bottom: 10px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                                <div><strong>ID:</strong> ${invoice.id}</div>
+                                <div><strong>Total:</strong> $${invoice.grandTotal.toFixed(2)}</div>
+                                <div><strong>Outstanding:</strong> $${invoice.outstandingAmount.toFixed(2)}</div>
+                                <div><strong>Due Date:</strong> ${invoice.datePaymentDue ? new Date(invoice.datePaymentDue).toLocaleDateString() : 'N/A'}</div>
+                                <div><strong>Status:</strong> ${invoice.isPastDue ? '<span style="color: #dc2626; font-weight: bold;">PAST DUE</span>' : '<span style="color: #059669;">Current</span>'}</div>
+                            </div>
+                            ${invoice.payments && invoice.payments.length > 0 ? `
+                                <div style="margin-top: 10px;">
+                                    <strong>Payments:</strong>
+                                    <div style="margin-top: 5px;">
+                                        ${invoice.payments.map(payment => `
+                                            <span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; margin-right: 5px; font-size: 0.9rem;">
+                                                $${payment.Amount} on ${new Date(payment.Date).toLocaleDateString()}
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')
+                    : '<p style="color: #6b7280; font-style: italic;">No outstanding invoices found.</p>';
+
+                return `
+                    <div class="customer-invoices">
+                        <h3>${customer.customer_username}</h3>
+                        <div class="customer-summary">
+                            <div class="summary-item">
+                                <div class="label">Email</div>
+                                <div class="value">${customer.email || 'N/A'}</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Total Orders</div>
+                                <div class="value">${customer.total_orders}</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Total Balance</div>
+                                <div class="value" style="color: ${customer.total_balance > 0 ? '#059669' : customer.total_balance < 0 ? '#dc2626' : '#6b7280'}">
+                                    $${customer.total_balance.toFixed(2)}
+                                </div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Due Balance</div>
+                                <div class="value" style="color: ${customer.due_invoice_balance > 0 ? '#dc2626' : '#6b7280'}">
+                                    $${customer.due_invoice_balance.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                        <h4 style="margin-bottom: 10px; color: #374151;">Invoices (Limited to ${data.limit || 5}):</h4>
+                        ${invoicesHtml}
+                    </div>
+                `;
+            }).join('');
+
+            invoicesSection.style.display = 'block';
+            // Scroll to invoices section
+            invoicesSection.scrollIntoView({ behavior: 'smooth' });
         }
 
         // Auto-run on page load for development (uncomment if needed)
