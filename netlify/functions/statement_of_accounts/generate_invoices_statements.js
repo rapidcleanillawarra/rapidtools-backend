@@ -747,7 +747,16 @@ const handler = async (event) => {
                 invoices: customer.invoices
             }));
 
-            console.log(`Returning ${resultCustomers.length} customers with their invoices`);
+            // Generate PDF HTML for each customer
+            const customersWithPdfHtml = resultCustomers.map(customer => {
+                const pdfHtml = generateStatementHTML(customer, customer.invoices);
+                return {
+                    ...customer,
+                    pdf_html: pdfHtml
+                };
+            });
+
+            console.log(`Returning ${customersWithPdfHtml.length} customers with their invoices and PDF HTML`);
 
             const timestamp = new Date().toISOString();
 
@@ -757,60 +766,13 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: true,
                     message: 'Customer invoices fetched successfully',
-                    customers: resultCustomers,
+                    customers: customersWithPdfHtml,
+                    pdf_html: customersWithPdfHtml.map(c => ({
+                        customer_username: c.customer_username,
+                        pdf_html: c.pdf_html
+                    })),
                     requested_customers: customers,
                     valid_customers: validCustomers,
-                    timestamp
-                })
-            };
-        } else if (action === 'generate_pdf_html') {
-            // Generate PDF HTML for a specific customer
-            const { customer, invoices } = requestBody;
-
-            console.log('Generate PDF HTML action - customer:', customer?.customer_username);
-            console.log('Number of invoices:', invoices?.length);
-
-            // Validate input
-            if (!customer || typeof customer !== 'object') {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Invalid customer parameter',
-                        message: 'customer must be a valid object'
-                    })
-                };
-            }
-
-            if (!invoices || !Array.isArray(invoices) || invoices.length === 0) {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Invalid invoices parameter',
-                        message: 'invoices must be a non-empty array'
-                    })
-                };
-            }
-
-            // Generate the PDF HTML
-            console.log('Generating PDF HTML for customer:', customer.customer_username);
-            const pdfHtml = generateStatementHTML(customer, invoices);
-
-            console.log('PDF HTML generated successfully');
-
-            const timestamp = new Date().toISOString();
-
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify({
-                    success: true,
-                    message: 'PDF HTML generated successfully',
-                    pdf_html: pdfHtml,
-                    customer_username: customer.customer_username,
                     timestamp
                 })
             };
@@ -822,7 +784,7 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: false,
                     error: 'Invalid action',
-                    message: 'Supported actions: "customers_only", "invoices", "generate_pdf_html"'
+                    message: 'Supported actions: "customers_only", "invoices"'
                 })
             };
         }
