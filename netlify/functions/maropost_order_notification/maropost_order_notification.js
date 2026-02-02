@@ -1013,6 +1013,8 @@ const handler = async (event) => {
             "OrderLine.ShippingMethod",
             "OrderLine.ProductName",
             "OrderLine.UnitPrice",
+            "OrderLine.PercentDiscount",
+            "OrderLine.ProductDiscount",
             "DatePlaced",
             "OrderStatus",
             "DatePlaced",
