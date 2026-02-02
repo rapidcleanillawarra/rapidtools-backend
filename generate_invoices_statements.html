@@ -452,6 +452,33 @@
             transform: none;
             box-shadow: none;
         }
+
+        /* View Email Button */
+        .view-email-button {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+            margin-left: 10px;
+        }
+
+        .view-email-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+
+        .view-email-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -519,7 +546,7 @@
     <div id="pdfModal" class="modal-overlay" style="display: none;">
         <div class="modal-container">
             <div class="modal-header">
-                <h2>PDF Preview</h2>
+                <h2 id="modalTitle">PDF Preview</h2>
                 <button id="closeModal" class="close-button">&times;</button>
             </div>
             <div class="modal-content">
@@ -594,11 +621,14 @@
             }
         });
 
-        // View PDF button event delegation (for dynamically created buttons)
+        // View PDF and Email button event delegation (for dynamically created buttons)
         document.addEventListener('click', async (e) => {
             if (e.target.classList.contains('view-pdf-button')) {
                 const customerUsername = e.target.dataset.customer;
                 await loadPdfHtml(customerUsername);
+            } else if (e.target.classList.contains('view-email-button')) {
+                const customerUsername = e.target.dataset.customer;
+                await loadEmailHtml(customerUsername);
             }
         });
 
@@ -607,6 +637,7 @@
             pdfLoading.style.display = 'block';
             pdfError.style.display = 'none';
             pdfContent.style.display = 'none';
+            document.getElementById('modalTitle').textContent = 'PDF Preview';
 
             try {
                 // Find the customer data from the current invoice results
@@ -637,6 +668,39 @@
 
             } catch (error) {
                 console.error('Error displaying PDF:', error);
+                pdfErrorText.textContent = error.message;
+                pdfLoading.style.display = 'none';
+                pdfError.style.display = 'block';
+            }
+        }
+
+        async function loadEmailHtml(customerUsername) {
+            showModal();
+            pdfLoading.style.display = 'block';
+            pdfError.style.display = 'none';
+            pdfContent.style.display = 'none';
+            document.getElementById('modalTitle').textContent = 'Email Preview';
+
+            try {
+                const customerData = window.currentInvoiceData?.customers?.find(
+                    c => c.customer_username === customerUsername
+                );
+
+                if (!customerData) {
+                    throw new Error('Customer data not found. Please refresh the page.');
+                }
+
+                if (!customerData.email_html) {
+                    throw new Error('Email content not available for this customer.');
+                }
+
+                pdfContent.innerHTML = `<pre style="padding: 20px; white-space: pre-wrap; font-family: monospace;">${customerData.email_html}</pre>`;
+
+                pdfLoading.style.display = 'none';
+                pdfContent.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error displaying email:', error);
                 pdfErrorText.textContent = error.message;
                 pdfLoading.style.display = 'none';
                 pdfError.style.display = 'block';
@@ -871,6 +935,9 @@
                                 <div class="value">
                                     <button class="view-pdf-button" data-customer="${customer.customer_username.replace(/"/g, '&quot;')}">
                                         View PDF
+                                    </button>
+                                    <button class="view-email-button" data-customer="${customer.customer_username.replace(/"/g, '&quot;')}">
+                                        View Email
                                     </button>
                                 </div>
                             </div>
