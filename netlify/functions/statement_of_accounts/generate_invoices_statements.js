@@ -1059,6 +1059,12 @@ const handler = async (event) => {
             const processedTodayUsernames = todayRecords?.map(r => r.customer_username) || [];
             console.log(`Found ${processedTodayUsernames.length} customers processed today`);
 
+            // Filter out customers already processed today
+            const unprocessedUsernames = filteredCustomerUsernames.filter(
+                username => !processedTodayUsernames.includes(username)
+            );
+            console.log(`After removing today's processed customers: ${unprocessedUsernames.length} available`);
+
             // 4. Fetch orders with outstanding balance
             console.log('Fetching orders with outstanding balance...');
             let ordersApiResponse;
@@ -1142,8 +1148,9 @@ const handler = async (event) => {
                 headers,
                 body: JSON.stringify({
                     success: true,
-                    customer_usernames: selectedUsernames,
-                    total: selectedUsernames.length,
+                    customer_usernames: unprocessedUsernames.slice(0, limit),
+                    total: Math.min(unprocessedUsernames.length, limit),
+                    customers_count: filteredCustomers.length,
                     timestamp: new Date().toISOString()
                 })
             };
