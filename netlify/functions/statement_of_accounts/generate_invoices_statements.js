@@ -46,6 +46,48 @@ const formatCustomerNameFromBillingAddress = (billingAddress) => {
 };
 
 /**
+ * Fetch customer data by username from Power Automate API
+ * @param {string} username - Customer username
+ * @returns {Object|null} Customer data or null if not found
+ */
+const fetchCustomerByUsername = async (username) => {
+    const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                Filter: {
+                    Username: username,
+                    OutputSelector: [
+                        "Username",
+                        "EmailAddress",
+                        "BillingAddress",
+                        "AccountBalance"
+                    ]
+                },
+                action: "GetCustomer"
+            })
+        });
+
+        if (!response.ok) {
+            console.error(`Failed to fetch customer ${username}: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const customers = data?.Customer || [];
+        return customers.length > 0 ? customers[0] : null;
+    } catch (error) {
+        console.error(`Error fetching customer ${username}:`, error);
+        return null;
+    }
+};
+
+/**
  * Generate Invoices Statements - Fetch Customer Data and Invoices
  *
  * This function accepts different payload actions:
@@ -240,7 +282,19 @@ const handler = async (event) => {
                 };
             }
 
-            const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+            // Fetch customer data for each valid customer (to get current BillingAddress)
+            console.log('Fetching customer data for each customer...');
+            const customerDataMap = {};
+            
+            for (const username of validCustomers) {
+                const customerData = await fetchCustomerByUsername(username);
+                if (customerData) {
+                    customerDataMap[username] = customerData;
+                    console.log(`Fetched customer data for: ${username}`);
+                } else {
+                    console.warn(`No customer data found for: ${username}`);
+                }
+            }
 
             // Fetch orders for specified customers
             console.log(`Fetching orders for customers: ${validCustomers.join(', ')}`);
@@ -264,8 +318,7 @@ const handler = async (event) => {
                                 'Email',
                                 'GrandTotal',
                                 'OrderPayment',
-                                'DatePaymentDue',
-                                'BillingAddress'
+                                'DatePaymentDue'
                             ]
                         },
                         action: 'GetOrder'
@@ -312,15 +365,17 @@ const handler = async (event) => {
                 const username = order.Username;
                 if (!username || !customers.includes(username)) return;
 
-                if (!customersWithInvoices[username]) {
-                    // Extract BillingAddress from the order
-                    const billingAddress = order.BillingAddress || {};
-                    // Format customer name from BillingAddress
-                    const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress);
+                // Get BillingAddress from customer API data, not from order
+                const customerApiData = customerDataMap[username];
+                const billingAddress = customerApiData?.BillingAddress || {};
+                
+                // Use customer API's BillingAddress for pdf_customer_name
+                const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress);
 
+                if (!customersWithInvoices[username]) {
                     customersWithInvoices[username] = {
                         customer_username: username,
-                        email: order.Email || '',
+                        email: customerApiData?.EmailAddress || order.Email || '',
                         billing_address: billingAddress,
                         pdf_customer_name: pdfCustomerName,
                         total_orders: 0,
