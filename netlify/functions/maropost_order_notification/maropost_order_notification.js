@@ -582,8 +582,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     const lineSubtotal = quantity * unitPrice;
     const discount = productDiscount;
     const discountedTotal = lineSubtotal - discount;
-    productSubtotal += discountedTotal;
-    totalProductDiscount += discount;
+    productSubtotal += lineSubtotal;  // Sum of original prices (no discount applied)
+    totalProductDiscount += discount;  // Track total discounts separately
 
     return {
       quantity: quantity,
@@ -601,7 +601,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
   const shippingOption = order.ShippingOption || 'Local';
   // GST is calculated on subtotal after applying discounts
-  const subtotalBeforeGst = productSubtotal + shippingTotal - shippingDiscount;
+  const subtotalBeforeGst = (productSubtotal - totalProductDiscount) + shippingTotal - shippingDiscount;
   const gst = subtotalBeforeGst * 0.10;
   const grandTotal = subtotalBeforeGst + gst;
 
@@ -842,6 +842,10 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
               <tr>
                 <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Product Subtotal:</td>
                 <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(productSubtotal)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #d32f2f; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Total Discounts:</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; color: #d32f2f;">-${formatCurrency(totalProductDiscount)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
