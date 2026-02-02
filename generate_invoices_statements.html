@@ -616,34 +616,11 @@
                     throw new Error('Customer data not found. Please refresh the page and try again.');
                 }
 
-                if (!customerData.invoices || customerData.invoices.length === 0) {
-                    throw new Error('No invoice data available for this customer.');
+                if (!customerData.pdf_html) {
+                    throw new Error('PDF content not available for this customer. Please regenerate the invoices.');
                 }
 
-                // Call the Netlify function to generate PDF HTML
-                const response = await fetch('/.netlify/functions/generate_invoices_statements', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'generate_pdf_html',
-                        customer: customerData,
-                        invoices: customerData.invoices
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.error || 'Unknown error occurred');
-                }
-
-                const htmlContent = data.pdf_html;
+                const htmlContent = customerData.pdf_html;
 
                 // Display the HTML content in an iframe for safe rendering
                 const iframe = document.createElement('iframe');
@@ -659,7 +636,7 @@
                 pdfContent.style.display = 'block';
 
             } catch (error) {
-                console.error('Error generating PDF HTML:', error);
+                console.error('Error displaying PDF:', error);
                 pdfErrorText.textContent = error.message;
                 pdfLoading.style.display = 'none';
                 pdfError.style.display = 'block';
