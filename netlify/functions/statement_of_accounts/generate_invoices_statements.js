@@ -980,6 +980,173 @@ const handler = async (event) => {
                     timestamp
                 })
             };
+        } else if (action === 'start') {
+            // 1. Get limit from request body, default to 5
+            const limit = Math.min(parseInt(body.limit || 5, 10), 50); // Max 50 to prevent abuse
+            if (isNaN(limit) || limit <= 0) {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Invalid limit parameter',
+                        message: 'Limit must be a positive integer'
+                    })
+                };
+            }
+
+            console.log(`Starting 'start' action with limit: ${limit}`);
+
+            // 2. Fetch customers with positive balance (reuse customers_only logic)
+            const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+
+            console.log('Fetching customers from Power Automate API...');
+            let customerApiResponse;
+
+            try {
+                customerApiResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        Filter: {
+                            Active: true,
+                            OutputSelector: [
+                                "Username",
+                                "AccountBalance"
+                            ]
+                        },
+                        action: "GetCustomer"
+                    })
+                });
+            } catch (fetchError) {
+                console.error('Customer API fetch error:', fetchError);
+                throw new Error(`Failed to fetch customers from Power Automate API: ${fetchError.message}`);
+            }
+
+            if (!customerApiResponse.ok) {
+                throw new Error(`Customer API request failed with status ${customerApiResponse.status}`);
+            }
+
+            const customerApiData = await customerApiResponse.json();
+            let allCustomers = customerApiData?.Customer || [];
+            console.log(`Fetched ${allCustomers.length} customers from API`);
+
+            // Filter customers with positive balance
+            const filteredCustomers = filterCustomersByBalance(allCustomers);
+            const filteredCustomerUsernames = filteredCustomers.map(c => c.Username);
+            console.log(`After balance filtering: ${filteredCustomerUsernames.length} customers remaining`);
+
+            // 3. Query statement_of_accounts for today's records
+            const today = new Date();
+            const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+            const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+
+            console.log('Querying statement_of_accounts for today\'s records...');
+            const { data: todayRecords, error: todayQueryError } = await supabase
+                .from('statement_of_accounts')
+                .select('customer_username')
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay)
+                .in('customer_username', filteredCustomerUsernames);
+
+            if (todayQueryError) {
+                console.error('Supabase query error for today\'s records:', todayQueryError);
+                throw new Error(`Failed to query today's records: ${todayQueryError.message}`);
+            }
+
+            const processedTodayUsernames = todayRecords?.map(r => r.customer_username) || [];
+            console.log(`Found ${processedTodayUsernames.length} customers processed today`);
+
+            // 4. Fetch orders with outstanding balance
+            console.log('Fetching orders with outstanding balance...');
+            let ordersApiResponse;
+
+            try {
+                ordersApiResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        Filter: {
+                            PaymentStatus: ['Pending', 'PartialPaid'],
+                            OutputSelector: [
+                                'ID',
+                                'Username',
+                                'GrandTotal',
+                                'OrderPayment'
+                            ]
+                        },
+                        action: 'GetOrder'
+                    })
+                });
+            } catch (fetchError) {
+                console.error('Orders API fetch error:', fetchError);
+                throw new Error(`Failed to fetch orders from Power Automate API: ${fetchError.message}`);
+            }
+
+            if (!ordersApiResponse.ok) {
+                throw new Error(`Orders API request failed with status ${ordersApiResponse.status}`);
+            }
+
+            const ordersApiData = await ordersApiResponse.json();
+            let orders = ordersApiData?.Order || [];
+            console.log(`Fetched ${orders.length} orders from API`);
+
+            // Filter orders with outstanding balance
+            const customersWithBalance = orders.filter(order => {
+                const grandTotal = parseFloat(order.GrandTotal || 0);
+                const paymentsSum = order.OrderPayment?.reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0) || 0;
+                const outstandingAmount = grandTotal - paymentsSum;
+                return outstandingAmount > 0;
+            });
+
+            const orderCustomerUsernames = [...new Set(customersWithBalance.map(o => o.Username))];
+            console.log(`Found ${orderCustomerUsernames.length} customers with outstanding orders`);
+
+            // 5. Filter out already-processed customers
+            const availableUsernames = orderCustomerUsernames.filter(
+                username => !processedTodayUsernames.includes(username)
+            );
+            console.log(`After removing today\'s processed customers: ${availableUsernames.length} available`);
+
+            // Get all existing customer_username from statement_of_accounts
+            console.log('Querying all existing records from statement_of_accounts...');
+            const { data: existingRecords, error: existingQueryError } = await supabase
+                .from('statement_of_accounts')
+                .select('customer_username');
+
+            if (existingQueryError) {
+                console.error('Supabase query error for existing records:', existingQueryError);
+                throw new Error(`Failed to query existing records: ${existingQueryError.message}`);
+            }
+
+            const existingUsernames = new Set(existingRecords?.map(r => r.customer_username) || []);
+            console.log(`Found ${existingUsernames.size} existing customers in statement_of_accounts`);
+
+            // Filter out customers already in statement_of_accounts
+            const newUsernames = availableUsernames.filter(
+                username => !existingUsernames.has(username)
+            );
+            console.log(`After removing existing customers: ${newUsernames.length} new customers available`);
+
+            // Select exactly {limit} records
+            const selectedUsernames = newUsernames.slice(0, limit);
+            console.log(`Selected ${selectedUsernames.length} customers for processing`);
+
+            // 6. Return response
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    customer_usernames: selectedUsernames,
+                    total: selectedUsernames.length,
+                    timestamp: new Date().toISOString()
+                })
+            };
         } else {
             // Handle unsupported actions
             return {
@@ -988,7 +1155,7 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: false,
                     error: 'Invalid action',
-                    message: 'Supported actions: "customers_only", "invoices"'
+                    message: 'Supported actions: "customers_only", "invoices", "start"'
                 })
             };
         }
