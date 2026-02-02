@@ -464,40 +464,13 @@ const generateEmailHTML = (customer, invoices) => {
     // Format customer name
     const customerName = customer.pdf_customer_name || customer.customer_username || 'Customer';
 
-    // Format statement date with time
-    const statementDate = new Date().toLocaleString('en-AU', {
-        month: 'numeric',
+    // Format statement date (no time) for email copy
+    const statementDate = new Date().toLocaleDateString('en-AU', {
         day: 'numeric',
+        month: 'short',
         year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
         timeZone: 'Australia/Sydney'
     });
-
-    // Calculate total invoices
-    const totalInvoices = invoices.length;
-
-    // Calculate date range from invoices
-    let dateRange = '';
-    if (invoices.length > 0) {
-        const dates = invoices.map(invoice => new Date(invoice.datePaymentDue)).filter(date => !isNaN(date));
-        if (dates.length > 0) {
-            const minDate = new Date(Math.min(...dates));
-            const maxDate = new Date(Math.max(...dates));
-            const minFormatted = minDate.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-            const maxFormatted = maxDate.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-            dateRange = `From: ${minFormatted}<br>To: ${maxFormatted}`;
-        }
-    }
 
     // Sort invoices by datePlaced in ascending order (oldest first)
     const sortedInvoices = [...invoices].sort((a, b) => {
@@ -528,13 +501,13 @@ const generateEmailHTML = (customer, invoices) => {
 
         return `
             <tr ${rowStyle}>
-                <td style="padding:12px 8px;text-align:center;vertical-align:middle;font-size:14px;color:#444;">${index + 1}</td>
-                <td style="padding:12px 8px;vertical-align:middle;font-size:14px;color:#333;font-weight:500;">${orderId}</td>
-                <td style="padding:12px 8px;vertical-align:middle;font-size:14px;color:#666;">${datePlaced}</td>
-                <td style="padding:12px 8px;vertical-align:middle;font-size:14px;color:${invoice.isPastDue ? '#dc2626' : '#666'};">${dueDate}${invoice.isPastDue ? ' <span style="background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;margin-left:5px;">Overdue</span>' : ''}</td>
-                <td style="padding:12px 8px;text-align:right;vertical-align:middle;font-size:14px;color:#333;">${orderTotal}</td>
-                <td style="padding:12px 8px;text-align:right;vertical-align:middle;font-size:14px;color:#666;">${payments}</td>
-                <td style="padding:12px 8px;text-align:right;vertical-align:middle;font-size:14px;color:#333;font-weight:600;">${balance}</td>
+                <td style="padding:8px 6px;text-align:center;vertical-align:middle;font-size:13px;color:#444;">${index + 1}</td>
+                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:#333;font-weight:500;">${orderId}</td>
+                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:#666;">${datePlaced}</td>
+                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:${invoice.isPastDue ? '#dc2626' : '#666'};">${dueDate}${invoice.isPastDue ? ' <span style="background:#dc2626;color:#fff;padding:1px 4px;border-radius:3px;font-size:10px;margin-left:4px;">Overdue</span>' : ''}</td>
+                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;">${orderTotal}</td>
+                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#666;">${payments}</td>
+                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;font-weight:600;">${balance}</td>
             </tr>`;
     }).join('');
 
@@ -545,142 +518,99 @@ const generateEmailHTML = (customer, invoices) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Statement of Account</title>
 </head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f7fa;color:#333;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7fa;padding:20px 0;">
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#ffffff;color:#222;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;background-color:#ffffff;border-collapse:collapse;">
     <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:700px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.08);overflow:hidden;">
-          <!-- Header Banner -->
+      <td style="padding:16px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
           <tr>
-            <td style="background:#222222;padding:30px 40px;text-align:center;">
-              <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:200px;height:auto;margin-bottom:20px;display:block;margin-left:auto;margin-right:auto;" />
-              <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">Statement of Account</h1>
-              <p style="margin:12px 0 0;color:#80BB3D;font-size:18px;font-weight:700;">${customerName}</p>
+            <td style="padding:12px 16px;background:#1f1f1f;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:190px;height:auto;display:block;" />
+                  </td>
+                  <td style="text-align:right;vertical-align:middle;font-size:14px;color:#d7e6c3;">
+                    <span style="display:inline-block;padding:6px 10px;background:#7fb13d;color:#ffffff;font-weight:700;border-radius:4px;letter-spacing:0.3px;">STATEMENT OF ACCOUNT</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
-          <!-- Greeting Section -->
           <tr>
-            <td style="padding:30px 40px 20px;">
-              <p style="margin:0 0 15px;font-size:16px;line-height:1.6;color:#333;">
-                Dear <strong>${customerName}</strong>,
-              </p>
-              <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#555;">
-                Please find attached your Open Statement as at ${statementDate}.
-              </p>
+            <td style="padding:0;font-size:15px;line-height:1.6;color:#222;">
+              <p style="margin:0 0 10px;">Hi ${customerName},</p>
+              <p style="margin:0 0 10px;">Hope you're well.</p>
+              <p style="margin:0 0 10px;">Please find attached your Open Statement as at ${statementDate}, which lists all currently outstanding (unpaid) invoices and any open credits on your account with RapidClean Illawarra.</p>
+              <p style="margin:0 0 10px;">If payment has already been processed recently, please disregard this message and accept our thanks.</p>
+              <p style="margin:0 0 10px;">If you need copies of any invoices, remittance details, or would like to query any item on the statement, please contact us at <a href="mailto:accounts@rapidcleanillawarra.com.au" style="color:#0a5ec2;text-decoration:underline;">accounts@rapidcleanillawarra.com.au</a><br>or call our office on (02) 4256 4477.</p>
+              <p style="margin:0 0 12px;">Please see below a summary of the outstanding invoices and any open credits currently on your account as at ${statementDate}:</p>
             </td>
           </tr>
-          <!-- Date Range and Invoice Summary -->
           <tr>
-            <td style="padding:0 40px 20px;">
-              <div style="background:#f8f9fa;border-radius:8px;padding:15px 20px;">
-                <table cellpadding="0" cellspacing="0" style="width:100%;">
-                  <tr>
-                    <td style="padding:5px 0;font-size:14px;color:#666;">Statement Date:</td>
-                    <td style="padding:5px 0;font-size:14px;font-weight:600;text-align:right;color:#333;">${statementDate}</td>
+            <td style="padding:0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
+                <thead>
+                  <tr style="background:#f3f4f6;">
+                    <th style="padding:8px 6px;text-align:center;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">#</th>
+                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Order #</th>
+                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Date Placed</th>
+                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Due Date</th>
+                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Order Total</th>
+                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Payments</th>
+                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Balance AUD</th>
                   </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:14px;color:#666;">Date Range:</td>
-                    <td style="padding:5px 0;font-size:14px;font-weight:600;text-align:right;color:#333;">${dateRange || 'All outstanding invoices'}</td>
+                </thead>
+                <tbody>
+                  ${tableRows}
+                </tbody>
+                <tfoot>
+                  <tr style="background:#f9fafb;">
+                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#111;border-top:1px solid #e5e7eb;">GRAND TOTAL AUD</td>
+                    <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#111;border-top:1px solid #e5e7eb;">${formatCurrency(grandTotal)}</td>
                   </tr>
-                  <tr>
-                    <td style="padding:5px 0;font-size:14px;color:#666;">Total Invoices:</td>
-                    <td style="padding:5px 0;font-size:14px;font-weight:600;text-align:right;color:#333;">${totalInvoices}</td>
+                  <tr style="background:#fef2f2;">
+                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#b91c1c;">BALANCE DUE AUD</td>
+                    <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#b91c1c;">${formatCurrency(dueInvoiceBalance)}</td>
                   </tr>
-                </table>
-              </div>
+                </tfoot>
+              </table>
             </td>
           </tr>
-          <!-- Invoice Table -->
           <tr>
-            <td style="padding:0 40px 20px;">
-              <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
-                <div style="background:#222222;padding:15px 20px;">
-                  <h2 style="margin:0;color:#fff;font-size:18px;font-weight:600;">Outstanding Invoices</h2>
-                </div>
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-                  <thead>
-                    <tr style="background:#fff;border-bottom:2px solid #222;">
-                      <th style="padding:8px;text-align:center;font-weight:600;font-size:16px;color:#333;">#</th>
-                      <th style="padding:8px;text-align:left;font-weight:600;font-size:16px;color:#333;">Order #</th>
-                      <th style="padding:8px;text-align:left;font-weight:600;font-size:16px;color:#333;">Date Placed</th>
-                      <th style="padding:8px;text-align:left;font-weight:600;font-size:16px;color:#333;">Due Date</th>
-                      <th style="padding:8px;text-align:right;font-weight:600;font-size:16px;color:#333;">Order Total</th>
-                      <th style="padding:8px;text-align:right;font-weight:600;font-size:16px;color:#333;">Payments</th>
-                      <th style="padding:8px;text-align:right;font-weight:600;font-size:16px;color:#333;">Balance AUD</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${tableRows}
-                  </tbody>
-                  <tfoot>
-                    <tr style="background:#f8f9fa;">
-                      <td colspan="6" style="padding:15px 8px;text-align:right;font-size:16px;font-weight:600;color:#333;border-top:2px solid #222;">GRAND TOTAL AUD</td>
-                      <td style="padding:15px 8px;text-align:right;font-size:18px;font-weight:700;color:#222;border-top:2px solid #222;">${formatCurrency(grandTotal)}</td>
-                    </tr>
-                    <tr style="background:#fef2f2;">
-                      <td colspan="6" style="padding:18px 8px;text-align:right;font-size:18px;font-weight:600;color:#dc2626;letter-spacing:1px;">BALANCE DUE AUD</td>
-                      <td style="padding:18px 8px;text-align:right;font-size:22px;font-weight:700;color:#dc2626;">${formatCurrency(dueInvoiceBalance)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </td>
-          </tr>
-          <!-- Payment Information Section -->
-          <tr>
-            <td style="padding:0 40px;">
-              <div style="border:1px solid #e0e6ed;border-radius:8px;overflow:hidden;">
-                <div style="background:#222222;padding:15px 20px;">
-                  <h2 style="margin:0;color:#fff;font-size:16px;font-weight:600;">Payment Information</h2>
-                </div>
-                <table cellpadding="0" cellspacing="0" style="width:100%;">
-                  <tr>
-                    <td style="padding:25px;vertical-align:top;width:50%;border-right:1px solid #eee;">
-                      <h3 style="margin:0 0 15px;font-size:15px;color:#80BB3D;font-weight:600;">Banking Details</h3>
-                      <div style="font-size:14px;line-height:1.8;color:#444;">
-                        <strong>IMB Shellharbour City</strong><br>
-                        BSB: 641-800<br>
-                        A/C: 200839104<br>
-                        Name: Rapid Illawarra Pty Ltd<br>
-                        Swiftcode: ASLLAU2C
-                      </div>
-                    </td>
-                    <td style="padding:25px;vertical-align:top;width:50%;text-align:center;">
-                      <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:block;margin-bottom:15px;">
-                        <img src="{{STRIPE_QR}}" alt="Stripe Payment QR" style="width:140px;height:140px;border:1px solid #eee;padding:4px;background:#fff;display:block;margin-left:auto;margin-right:auto;">
-                      </a>
-                      <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="background-color:#635bff;color:#fff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;font-size:14px;display:inline-block;">Pay via Stripe</a>
-                      <div style="font-size:12px;color:#888;margin-top:8px;">Scan QR or click to pay online</div>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </td>
-          </tr>
-          <!-- Contact Information -->
-          <tr>
-            <td style="padding:30px 40px 20px;">
-              <div style="background:#f8f9fa;border-radius:8px;padding:20px;text-align:center;">
-                <p style="margin:0 0 10px;font-size:14px;color:#555;line-height:1.6;">
-                  If you need copies of any invoices, remittance details, or have any questions, please contact us:
-                </p>
-                <p style="margin:0;font-size:14px;">
-                  <strong>Email:</strong> <a href="mailto:accounts@rapidcleanillawarra.com.au" style="color:#80BB3D;text-decoration:underline;">accounts@rapidcleanillawarra.com.au</a>
-                  &nbsp;&nbsp;|&nbsp;&nbsp;
-                  <strong>Phone:</strong> (02) 4256 4477
-                </p>
-              </div>
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f5f7fa;padding:25px 40px;border-top:1px solid #e0e6ed;">
-              <p style="margin:0;font-size:13px;color:#777;text-align:center;">
-                Thank you for your business.
-              </p>
-              <p style="margin:10px 0 0;font-size:11px;color:#999;text-align:center;">
-                <strong style="color:#80BB3D;">RapidClean Illawarra</strong> | 112a Industrial Road, Oak Flats NSW 2529
-              </p>
+            <td style="padding:12px 0 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
+                <tr>
+                  <td style="padding:10px 12px;background:#1f1f1f;color:#ffffff;font-size:14px;font-weight:700;">
+                    Payment Methods
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td style="width:50%;vertical-align:top;padding-right:10px;font-size:13px;line-height:1.6;color:#222;">
+                          <div style="font-weight:700;color:#7fb13d;margin-bottom:6px;">Banking Details</div>
+                          <div>
+                            <strong>IMB Shellharbour City</strong><br>
+                            BSB: 641-800<br>
+                            A/C: 200839104<br>
+                            Name: Rapid Illawarra Pty Ltd<br>
+                            Swiftcode: ASLLAU2C
+                          </div>
+                        </td>
+                        <td style="width:50%;vertical-align:top;text-align:center;padding-left:10px;">
+                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:block;margin-bottom:8px;">
+                            <img src="{{STRIPE_QR}}" alt="Stripe Payment QR" style="width:120px;height:120px;border:1px solid #e5e7eb;padding:4px;background:#ffffff;display:block;margin-left:auto;margin-right:auto;">
+                          </a>
+                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="background-color:#7fb13d;color:#fff;text-decoration:none;padding:8px 16px;border-radius:4px;font-weight:700;font-size:13px;display:inline-block;">Pay via Stripe</a>
+                          <div style="font-size:11px;color:#666;margin-top:6px;">Scan QR or click to pay online</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
