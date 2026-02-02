@@ -767,10 +767,6 @@ const handler = async (event) => {
                     success: true,
                     message: 'Customer invoices fetched successfully',
                     customers: customersWithPdfHtml,
-                    pdf_html: customersWithPdfHtml.map(c => ({
-                        customer_username: c.customer_username,
-                        pdf_html: c.pdf_html
-                    })),
                     requested_customers: customers,
                     valid_customers: validCustomers,
                     timestamp
