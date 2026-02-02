@@ -319,7 +319,8 @@ const handler = async (event) => {
                                 'Email',
                                 'GrandTotal',
                                 'OrderPayment',
-                                'DatePaymentDue'
+                                'DatePaymentDue',
+                                'DatePlaced'
                             ]
                         },
                         action: 'GetOrder'
@@ -412,6 +413,7 @@ const handler = async (event) => {
                     grandTotal: grandTotal,
                     payments: order.OrderPayment || [],
                     outstandingAmount: outstandingAmount,
+                    datePlaced: order.DatePlaced || null,
                     datePaymentDue: order.DatePaymentDue || null,
                     isPastDue: isPastDue
                 });

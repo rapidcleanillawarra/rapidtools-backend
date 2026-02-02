@@ -101,10 +101,10 @@ const generateStatementHTML = (customer, orders) => {
         hour12: true
     });
 
-    // Calculate date range from orders
+    // Calculate date range from orders using DatePlaced
     let dateRange = '';
     if (orders.length > 0) {
-        const dates = orders.map(order => new Date(order.datePaymentDue)).filter(date => !isNaN(date));
+        const dates = orders.map(order => new Date(order.DatePlaced)).filter(date => !isNaN(date));
         if (dates.length > 0) {
             const minDate = new Date(Math.min(...dates));
             const maxDate = new Date(Math.max(...dates));
@@ -114,10 +114,13 @@ const generateStatementHTML = (customer, orders) => {
         }
     }
 
+    // Sort orders by DatePlaced ascending
+    const sortedOrders = [...orders].sort((a, b) => new Date(a.DatePlaced) - new Date(b.DatePlaced));
+    
     // Generate order rows
-    const orderRows = orders.map(order => {
+    const orderRows = sortedOrders.map(order => {
         const orderId = order.id;
-        const datePlaced = formatDate(order.datePaymentDue);
+        const datePlaced = formatDate(order.DatePlaced);
         const dueDate = formatDate(order.datePaymentDue);
         const orderTotal = formatCurrency(order.grandTotal);
         const payments = formatCurrency(order.payments.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0));
