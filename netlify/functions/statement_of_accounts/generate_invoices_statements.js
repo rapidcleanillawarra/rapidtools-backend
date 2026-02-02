@@ -129,10 +129,17 @@ const generateStatementHTML = (customer, invoices) => {
         }
     }
 
+    // Sort invoices by datePlaced in ascending order (oldest first)
+    const sortedInvoices = [...invoices].sort((a, b) => {
+        const dateA = a.datePlaced ? new Date(a.datePlaced).getTime() : 0;
+        const dateB = b.datePlaced ? new Date(b.datePlaced).getTime() : 0;
+        return dateA - dateB;
+    });
+
     // Generate order rows
-    const orderRows = invoices.map(invoice => {
+    const orderRows = sortedInvoices.map((invoice, index) => {
         const orderId = invoice.id;
-        const datePlaced = invoice.datePaymentDue ? new Date(invoice.datePaymentDue).toLocaleDateString('en-US', {
+        const datePlaced = invoice.datePlaced ? new Date(invoice.datePlaced).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
@@ -151,6 +158,7 @@ const generateStatementHTML = (customer, invoices) => {
 
         return `
             <tr ${rowClass}>
+                <td>${index + 1}</td>
                 <td>${orderId}</td>
                 <td>${datePlaced}</td>
                 <td>${dueDate}</td>
@@ -340,6 +348,7 @@ const generateStatementHTML = (customer, invoices) => {
                 <table>
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Order #</th>
                             <th>Date Placed</th>
                             <th>Due Date</th>
@@ -353,11 +362,11 @@ const generateStatementHTML = (customer, invoices) => {
                     </tbody>
                     <tfoot>
                         <tr class="summary-row">
-                            <td colspan="5" class="summary-label">GRAND TOTAL AUD</td>
+                            <td colspan="6" class="summary-label">GRAND TOTAL AUD</td>
                             <td class="summary-value right">${grandTotal}</td>
                         </tr>
                         <tr class="summary-row balance-due-row">
-                            <td colspan="5" class="summary-label balance-due-label">BALANCE DUE AUD</td>
+                            <td colspan="6" class="summary-label balance-due-label">BALANCE DUE AUD</td>
                             <td class="summary-value right balance-due-value">${dueInvoiceBalance}</td>
                         </tr>
                     </tfoot>
