@@ -246,6 +246,7 @@ const handler = async (event) => {
                 })
             };
         } else if (action === 'invoices') {
+            const API_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
             const { customers = [] } = requestBody;
 
             console.log('Invoices action - customers received:', customers);
