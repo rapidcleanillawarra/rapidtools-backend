@@ -533,11 +533,11 @@ const generateEmailHTML = (customer, invoices) => {
           <tr>
             <td style="padding:0;font-size:15px;line-height:1.6;color:#222;">
               <p style="margin:0 0 10px;">Hi ${customerName},</p>
-              <p style="margin:0 0 10px;">Hope you're well.</p>
+              <p style="margin:0 0 10px;">Hope you're well. This is an automated email for open statement of accounts.</p>
               <p style="margin:0 0 10px;">Please find attached your Open Statement as at ${statementDate}, which lists all currently outstanding (unpaid) invoices and any open credits on your account with RapidClean Illawarra.</p>
               <p style="margin:0 0 10px;">If payment has already been processed recently, please disregard this message and accept our thanks.</p>
               <p style="margin:0 0 10px;">If you need copies of any invoices, remittance details, or would like to query any item on the statement, please contact us at <a href="mailto:accounts@rapidcleanillawarra.com.au" style="color:#0a5ec2;text-decoration:underline;">accounts@rapidcleanillawarra.com.au</a><br>or call our office on (02) 4256 4477.</p>
-              <p style="margin:0 0 12px;">Please see below a summary of the outstanding invoices and any open credits currently on your account as at ${statementDate}:</p>
+              <p style="margin:0 0 12px;">Please see below a summary of the outstanding invoices and any open credits currently on your account:</p>
             </td>
           </tr>
           <tr>
