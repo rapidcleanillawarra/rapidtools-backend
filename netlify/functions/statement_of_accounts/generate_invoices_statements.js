@@ -437,6 +437,92 @@ const generateStatementHTML = (customer, invoices) => {
         </html>`;
 };
 
+const generateEmailHTML = (customer, invoices) => {
+    // Helper function to format currency with commas
+    const formatCurrency = (amount) => {
+        if (amount === null || amount === undefined) return '0.00';
+        const num = parseFloat(amount);
+        if (isNaN(num)) return '0.00';
+        return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Format customer name
+    const customerName = customer.pdf_customer_name || customer.customer_username || 'Customer';
+
+    // Format date
+    const statementDate = new Date().toLocaleDateString('en-AU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+
+    // Generate invoice table rows
+    const tableRows = invoices.map((invoice, index) => {
+        const orderId = invoice.id;
+        const datePlaced = invoice.datePlaced ? new Date(invoice.datePlaced).toLocaleDateString('en-AU', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        }) : 'N/A';
+        const dueDate = invoice.datePaymentDue ? new Date(invoice.datePaymentDue).toLocaleDateString('en-AU', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        }) : 'N/A';
+        const orderTotal = invoice.grandTotal ? formatCurrency(invoice.grandTotal) : '0.00';
+        const balance = invoice.outstandingAmount ? formatCurrency(invoice.outstandingAmount) : '0.00';
+
+        return `
+            <tr>
+                <td>${orderId}</td>
+                <td>${datePlaced}</td>
+                <td>${dueDate}</td>
+                <td style="text-align: right;">$${orderTotal}</td>
+                <td style="text-align: right;">$${balance}</td>
+            </tr>`;
+    }).join('');
+
+    const totalBalance = invoices.reduce((sum, inv) => sum + parseFloat(inv.outstandingAmount || 0), 0);
+
+    return `
+Hi ${customerName},
+
+Hope you're well.
+
+Please find attached your Open Statement as at ${statementDate}, which lists all currently outstanding (unpaid) invoices and any open credits on your account with RapidClean Illawarra.
+
+If payment has already been processed recently, please disregard this message and accept our thanks.
+
+If you need copies of any invoices, remittance details, or would like to query any item on the statement, please contact us at accounts@rapidcleanillawarra.com.au or call our office on (02) 4256 4477.
+
+Please see below a summary of the outstanding invoices and any open credits currently on your account as at ${statementDate}:
+
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Order #</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date Placed</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Due Date</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Order Total</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+        ${tableRows}
+        <tr style="background-color: #f9f9f9; font-weight: bold;">
+            <td colspan="4" style="padding: 10px; border: 1px solid #ddd; text-align: right;">Total Outstanding</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">$${formatCurrency(totalBalance)}</td>
+        </tr>
+    </tbody>
+</table>
+
+Thank you for your business.
+
+Kind regards,
+RapidClean Illawarra Team
+    `;
+};
+
 const handler = async (event) => {
     console.log('=== Generate Invoices Statements Function Invoked ===');
     console.log('Timestamp:', new Date().toISOString());
@@ -765,16 +851,18 @@ const handler = async (event) => {
                 invoices: customer.invoices
             }));
 
-            // Generate PDF HTML for each customer
+            // Generate PDF HTML and Email HTML for each customer
             const customersWithPdfHtml = resultCustomers.map(customer => {
                 const pdfHtml = generateStatementHTML(customer, customer.invoices);
+                const emailHtml = generateEmailHTML(customer, customer.invoices);
                 return {
                     ...customer,
-                    pdf_html: pdfHtml
+                    pdf_html: pdfHtml,
+                    email_html: emailHtml
                 };
             });
 
-            console.log(`Returning ${customersWithPdfHtml.length} customers with their invoices and PDF HTML`);
+            console.log(`Returning ${customersWithPdfHtml.length} customers with their invoices, PDF HTML, and Email HTML`);
 
             const timestamp = new Date().toISOString();
 
@@ -783,7 +871,7 @@ const handler = async (event) => {
                 headers,
                 body: JSON.stringify({
                     success: true,
-                    message: 'Customer invoices fetched successfully',
+                    message: 'Customer invoices fetched successfully with PDF and Email HTML',
                     customers: customersWithPdfHtml,
                     requested_customers: customers,
                     valid_customers: validCustomers,
@@ -828,4 +916,4 @@ const handler = async (event) => {
     }
 };
 
-module.exports = { handler, filterCustomersByBalance, generateStatementHTML };
+module.exports = { handler, filterCustomersByBalance, generateStatementHTML, generateEmailHTML };
