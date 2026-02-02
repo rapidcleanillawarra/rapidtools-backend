@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statement of Accounts - Balance Checker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .action-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .run-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .run-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        .run-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-card .matched { color: #10b981; }
+        .stat-card .unmatched { color: #ef4444; }
+        .stat-card .neutral { color: #3b82f6; }
+
+        .customers-section {
+            margin-top: 40px;
+        }
+
+        .customers-section h2 {
+            margin-bottom: 20px;
+            color: #1e293b;
+            font-size: 1.5rem;
+        }
+
+        .customers-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .customers-table th,
+        .customers-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .customers-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+
+        .customers-table tr:hover {
+            background: #f8fafc;
+            cursor: pointer;
+        }
+
+        .balance-match {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .balance-match.true {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .balance-match.false {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .error-message {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .unmatched-usernames {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+        }
+
+        .unmatched-usernames h3 {
+            color: #991b1b;
+            margin-bottom: 10px;
+        }
+
+        .username-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .username-tag {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Username links */
+        .username-link {
+            color: #4f46e5 !important;
+            text-decoration: none !important;
+            font-weight: 500 !important;
+            transition: color 0.3s ease;
+        }
+
+        .username-link:hover {
+            color: #7c3aed !important;
+            text-decoration: underline !important;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+
+        .close-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .customer-summary {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .customer-summary h3 {
+            margin: 0 0 10px 0;
+            color: #1e293b;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item .label {
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .orders-section h3 {
+            margin-bottom: 15px;
+            color: #1e293b;
+            font-size: 1.3rem;
+        }
+
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .orders-table th,
+        .orders-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .orders-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+
+        .orders-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .payment-details {
+            margin-top: 10px;
+        }
+
+        .payment-details h4 {
+            font-size: 0.9rem;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .payment-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .payment-item {
+            background: #e0f2fe;
+            color: #0277bd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .no-payments {
+            color: #64748b;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .customers-table {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Statement of Accounts</h1>
+            <p>Balance Checker - Compare Customer API vs Order Calculations</p>
+        </div>
+
+        <div class="content">
+            <div class="action-section">
+                <button id="runButton" class="run-button">
+                    Run Balance Check
+                </button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Processing customer balances...</p>
+            </div>
+
+            <div id="errorMessage" class="error-message">
+                <strong>Error:</strong> <span id="errorText"></span>
+            </div>
+
+            <div id="results" class="hidden">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Customer API Users</h3>
+                        <div class="value neutral" id="customerApiCount">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Order API Users</h3>
+                        <div class="value neutral" id="orderApiCount">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Matched Balances</h3>
+                        <div class="value matched" id="matchedCount">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Unmatched Balances</h3>
+                        <div class="value unmatched" id="unmatchedCount">-</div>
+                    </div>
+                </div>
+
+                <div id="unmatchedSection" class="unmatched-usernames hidden">
+                    <h3>Customers with Unmatched Balances</h3>
+                    <div id="unmatchedUsernames" class="username-tags"></div>
+                </div>
+
+                <div class="customers-section">
+                    <h2>Customer Balance Details</h2>
+                    <table class="customers-table" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">#</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Source</th>
+                                <th>Total Orders</th>
+                                <th>All Invoices Balance (Order)</th>
+                                <th>Due Invoice Balance (Order)</th>
+                                <th>Total Balance (Customer)</th>
+                                <th>Balance Match</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <tr>
+                                <td colspan="9" style="text-align: center; padding: 40px;">
+                                    Click "Run Balance Check" to load data
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Order Details</h2>
+                <button class="close-button" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const runButton = document.getElementById('runButton');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const results = document.getElementById('results');
+        const customersTableBody = document.getElementById('customersTableBody');
+        const customerApiCount = document.getElementById('customerApiCount');
+        const orderApiCount = document.getElementById('orderApiCount');
+        const matchedCount = document.getElementById('matchedCount');
+        const unmatchedCount = document.getElementById('unmatchedCount');
+        const unmatchedSection = document.getElementById('unmatchedSection');
+        const unmatchedUsernames = document.getElementById('unmatchedUsernames');
+        const orderModal = document.getElementById('orderModal');
+        const closeModal = document.getElementById('closeModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+
+        let currentCustomerData = null;
+
+        // Modal event listeners
+        closeModal.addEventListener('click', () => {
+            orderModal.classList.remove('show');
+        });
+
+        orderModal.addEventListener('click', (e) => {
+            if (e.target === orderModal) {
+                orderModal.classList.remove('show');
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && orderModal.classList.contains('show')) {
+                orderModal.classList.remove('show');
+            }
+        });
+
+        runButton.addEventListener('click', async () => {
+            // Reset UI
+            errorMessage.classList.add('hidden');
+            results.classList.add('hidden');
+            loading.classList.remove('hidden');
+            runButton.disabled = true;
+            runButton.textContent = 'Processing...';
+
+            try {
+                // Call the Netlify function
+                const response = await fetch('/.netlify/functions/check_existing_customer_statement', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+
+                // Update UI with results
+                updateStats(data.stats);
+                updateCustomersTable(data.customers);
+                results.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorText.textContent = error.message;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+                runButton.disabled = false;
+                runButton.textContent = 'Run Balance Check';
+            }
+        });
+
+        function updateStats(stats) {
+            customerApiCount.textContent = stats.customer_api_usernames || 0;
+            orderApiCount.textContent = stats.order_api_unique_username || 0;
+            matchedCount.textContent = stats.matched_balances_count || 0;
+            unmatchedCount.textContent = stats.unmatched_balances_count || 0;
+
+            // Show unmatched usernames if any exist
+            if (stats.usernames_with_unmatched_balances && stats.usernames_with_unmatched_balances.length > 0) {
+                unmatchedUsernames.innerHTML = stats.usernames_with_unmatched_balances
+                    .map(username => `<span class="username-tag">${username}</span>`)
+                    .join('');
+                unmatchedSection.classList.remove('hidden');
+            } else {
+                unmatchedSection.classList.add('hidden');
+            }
+        }
+
+        function updateCustomersTable(customers) {
+            if (!customers || customers.length === 0) {
+                customersTableBody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px;">No customer data available</td></tr>';
+                return;
+            }
+
+            // Store customer data for modal access
+            currentCustomerData = customers;
+
+            customersTableBody.innerHTML = customers
+                .sort((a, b) => a.customer_username.localeCompare(b.customer_username))
+                .map((customer, index) => `
+                    <tr data-customer-index="${index}">
+                        <td style="text-align: center; font-weight: 600; color: #64748b;">${index + 1}</td>
+                        <td><a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></td>
+                        <td>${customer.email || '-'}</td>
+                        <td>${customer.source || 'Unknown'}</td>
+                        <td>${customer.total_orders}</td>
+                        <td>$${customer.total_balance.toFixed(2)}</td>
+                        <td>$${customer.due_invoice_balance.toFixed(2)}</td>
+                        <td>${customer.api_account_balance !== null ? '$' + customer.api_account_balance.toFixed(2) : 'N/A'}</td>
+                        <td>
+                            <span class="balance-match ${customer.balance_matches}">
+                                ${customer.balance_matches ? '✓ Match' : '✗ Mismatch'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+
+            // Add click event listeners to table rows
+            customersTableBody.querySelectorAll('tr[data-customer-index]').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    const customerIndex = parseInt(row.getAttribute('data-customer-index'));
+                    const customer = currentCustomerData[customerIndex];
+                    if (customer) {
+                        showOrderDetailsModal(customer);
+                    }
+                });
+            });
+        }
+
+        function showOrderDetailsModal(customer) {
+            modalTitle.textContent = `Order Details - ${customer.customer_username}`;
+
+            const ordersHtml = customer.orders && customer.orders.length > 0
+                ? customer.orders.map((order, index) => `
+                    <tr>
+                        <td style="text-align: center; font-weight: 600; color: #64748b;">${index + 1}</td>
+                        <td>${order.id}</td>
+                        <td>$${order.grandTotal.toFixed(2)}</td>
+                        <td>$${order.outstandingAmount.toFixed(2)}</td>
+                        <td>${order.datePaymentDue || 'N/A'}</td>
+                        <td>
+                            ${order.payments && order.payments.length > 0
+                                ? `<div class="payment-details">
+                                    <div class="payment-list">
+                                        ${order.payments.map(payment => `
+                                            <span class="payment-item">$${parseFloat(payment.Amount || 0).toFixed(2)}</span>
+                                        `).join('')}
+                                    </div>
+                                   </div>`
+                                : '<span class="no-payments">No payments</span>'
+                            }
+                        </td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="6" style="text-align: center; padding: 20px;">No orders found</td></tr>';
+
+            modalBody.innerHTML = `
+                <div class="customer-summary">
+                    <h3>Customer Summary</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="label">Username</div>
+                            <div class="value"><a href="https://www.rapidsupplies.com.au/_cpanel/customer/view?id=${encodeURIComponent(customer.customer_username)}" target="_blank" class="username-link">${customer.customer_username}</a></div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Email</div>
+                            <div class="value">${customer.email || 'N/A'}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Source</div>
+                            <div class="value">${customer.source || 'Unknown'}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Total Orders</div>
+                            <div class="value">${customer.total_orders}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">All Invoices Balance (Order)</div>
+                            <div class="value">$${customer.total_balance.toFixed(2)}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Due Invoice Balance (Order)</div>
+                            <div class="value">$${customer.due_invoice_balance.toFixed(2)}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Total Balance (Customer)</div>
+                            <div class="value">${customer.api_account_balance !== null ? '$' + customer.api_account_balance.toFixed(2) : 'N/A'}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Balance Match</div>
+                            <div class="value">
+                                <span class="balance-match ${customer.balance_matches}">
+                                    ${customer.balance_matches ? '✓ Match' : '✗ Mismatch'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="orders-section">
+                    <h3>Order Details</h3>
+                    <table class="orders-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">#</th>
+                                <th>Order ID</th>
+                                <th>Grand Total</th>
+                                <th>Outstanding</th>
+                                <th>Payment Due</th>
+                                <th>Payments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${ordersHtml}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            orderModal.classList.add('show');
+        }
+
+        // Auto-run on page load for development
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Uncomment to auto-run on local development
+            // runButton.click();
+        }
+    </script>
+</body>
+</html>
