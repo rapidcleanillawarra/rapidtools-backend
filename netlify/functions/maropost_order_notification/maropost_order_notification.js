@@ -574,17 +574,22 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
 
   // Calculate line item subtotals and totals
   let productSubtotal = 0;
+  let totalProductDiscount = 0;
   const orderLineRows = orderLines.map(line => {
     const quantity = parseFloat(line.Quantity || line.Qty || 0);
     const unitPrice = parseFloat(line.UnitPrice || 0);
+    const productDiscount = parseFloat(line.ProductDiscount || 0);
     const subtotal = quantity * unitPrice;
+    const discount = productDiscount;
     productSubtotal += subtotal;
+    totalProductDiscount += discount;
 
     return {
       quantity: quantity,
       sku: line.SKU || '',
       productName: line.ProductName || '',
       unitPrice: unitPrice,
+      discount: discount,
       subtotal: subtotal
     };
   });
@@ -593,9 +598,10 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const shippingTotal = parseFloat(order.ShippingTotal || 0);
   const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
   const shippingOption = order.ShippingOption || 'Local';
-  // GST is calculated on product subtotal + shipping costs (before discounts)
-  const gst = (productSubtotal + shippingTotal) * 0.10;
-  const grandTotal = productSubtotal + shippingTotal + gst - shippingDiscount;
+  // GST is calculated on subtotal after applying discounts
+  const subtotalBeforeGst = productSubtotal + shippingTotal - totalProductDiscount - shippingDiscount;
+  const gst = subtotalBeforeGst * 0.10;
+  const grandTotal = subtotalBeforeGst + gst;
 
   // Calculate total amount paid from OrderPayment array
   const amountPaid = (order.OrderPayment || []).reduce((total, payment) => {
@@ -625,7 +631,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   if (orderLineRows.length === 0) {
     orderItemsRows = `
       <tr>
-        <td colspan="5" style="padding: 15px; text-align: center; color: #666; border-bottom: 1px solid #eee;">
+        <td colspan="6" style="padding: 15px; text-align: center; color: #666; border-bottom: 1px solid #eee;">
           No items found in this order.
         </td>
       </tr>
@@ -638,6 +644,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
           <td style="padding: 10px 8px; text-align: center; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${item.quantity}</td>
           <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(item.sku)}</td>
           <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(item.productName)}</td>
+          <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${item.discount > 0 ? `-${formatCurrency(item.discount)}` : ''}</td>
           <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(item.unitPrice)}</td>
           <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(item.subtotal)}</td>
         </tr>
@@ -661,11 +668,13 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
           const unitPrice = parseFloat(line.UnitPrice || 0);
           const subtotal = qty * unitPrice;
           const rowBg = index % 2 === 0 ? '#fff' : '#f9f9f9';
+          const discount = parseFloat(line.ProductDiscount || 0);
           backorderRows += `
             <tr style="background-color: ${rowBg}; page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 10px 8px; text-align: center; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${qty}</td>
               <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(line.SKU || '')}</td>
               <td style="padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(line.ProductName || '')}</td>
+              <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${discount > 0 ? `-${formatCurrency(discount)}` : ''}</td>
               <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(unitPrice)}</td>
               <td style="padding: 10px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(subtotal)}</td>
             </tr>
@@ -690,6 +699,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                 <th style="padding: 12px 8px; text-align: center; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 60px;">QTY</th>
                 <th style="padding: 12px 8px; text-align: left; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 120px;">SKU</th>
                 <th style="padding: 12px 8px; text-align: left; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Name</th>
+                <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 100px;">Discount</th>
                 <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 100px;">Unit Price (Ex GST)</th>
                 <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 100px;">Subtotal</th>
               </tr>
@@ -806,6 +816,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
           <th style="padding: 12px 10px; text-align: center; font-weight: 600; border: none; border-radius: 4px 0 0 4px; width: 60px;">QTY</th>
           <th style="padding: 12px 10px; text-align: left; font-weight: 600; border: none; width: 120px;">SKU</th>
           <th style="padding: 12px 10px; text-align: left; font-weight: 600; border: none;">DESCRIPTION</th>
+          <th style="padding: 12px 10px; text-align: right; font-weight: 600; border: none; width: 100px;">DISCOUNT</th>
           <th style="padding: 12px 10px; text-align: right; font-weight: 600; border: none; width: 100px;">UNIT PRICE</th>
           <th style="padding: 12px 10px; text-align: right; font-weight: 600; border: none; border-radius: 0 4px 4px 0; width: 100px;">TOTAL</th>
         </tr>
@@ -834,6 +845,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                 <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
                 <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(gst)}</td>
               </tr>
+              ${totalProductDiscount > 0 ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Product Discount:</td>
+                <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">-${formatCurrency(totalProductDiscount)}</td>
+              </tr>
+              ` : ''}
               ${shippingDiscount > 0 ? `
               <tr>
                 <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">Shipping Discount:</td>
