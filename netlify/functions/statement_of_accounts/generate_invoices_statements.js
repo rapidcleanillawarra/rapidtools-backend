@@ -162,9 +162,9 @@ const generateStatementHTML = (customer, invoices) => {
                 <td>${orderId}</td>
                 <td>${datePlaced}</td>
                 <td>${dueDate}</td>
-                <td class="right">${orderTotal}</td>
-                <td class="right">${payments}</td>
-                <td class="right">${balance}</td>
+                <td class="right">$${orderTotal}</td>
+                <td class="right">$${payments}</td>
+                <td class="right">$${balance}</td>
             </tr>`;
     }).join('');
 
@@ -363,11 +363,11 @@ const generateStatementHTML = (customer, invoices) => {
                     <tfoot>
                         <tr class="summary-row">
                             <td colspan="6" class="summary-label">GRAND TOTAL AUD</td>
-                            <td class="summary-value right">${grandTotal}</td>
+                            <td class="summary-value right">$${grandTotal}</td>
                         </tr>
                         <tr class="summary-row balance-due-row">
                             <td colspan="6" class="summary-label balance-due-label">BALANCE DUE AUD</td>
-                            <td class="summary-value right balance-due-value">${dueInvoiceBalance}</td>
+                            <td class="summary-value right balance-due-value">$${dueInvoiceBalance}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -408,7 +408,7 @@ const generateStatementHTML = (customer, invoices) => {
                             </tr>
                             <tr>
                                 <td style="font-weight: bold;">Balance Due</td>
-                                <td style="color: #dc2626; font-weight: bold;">${dueInvoiceBalance}</td>
+                                <td style="color: #dc2626; font-weight: bold;">$${dueInvoiceBalance}</td>
                             </tr>
                             <tr>
                                 <td style="font-weight: bold; padding-top: 18px;">Amount Enclosed</td>
