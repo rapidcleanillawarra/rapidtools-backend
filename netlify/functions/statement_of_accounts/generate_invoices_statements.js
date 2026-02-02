@@ -94,18 +94,27 @@ const fetchCustomerByUsername = async (username) => {
  * @returns {string} Complete HTML document for the PDF statement
  */
 const generateStatementHTML = (customer, invoices) => {
+    // Helper function to format currency with commas
+    const formatCurrency = (amount) => {
+        if (amount === null || amount === undefined) return '0.00';
+        const num = parseFloat(amount);
+        if (isNaN(num)) return '0.00';
+        return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     const customerName = customer.pdf_customer_name || customer.customer_username || 'Customer';
     const totalInvoices = customer.total_orders || invoices.length;
-    const totalBalance = customer.total_balance ? customer.total_balance.toFixed(2) : '0.00';
-    const dueInvoiceBalance = customer.due_invoice_balance ? customer.due_invoice_balance.toFixed(2) : '0.00';
+    const totalBalance = customer.total_balance ? formatCurrency(customer.total_balance) : '0.00';
+    const dueInvoiceBalance = customer.due_invoice_balance ? formatCurrency(customer.due_invoice_balance) : '0.00';
     const grandTotal = totalBalance;
-    const printedDate = new Date().toLocaleString('en-US', {
+    const printedDate = new Date().toLocaleString('en-AU', {
         month: 'numeric',
         day: 'numeric',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: 'Australia/Sydney'
     });
 
     // Calculate date range from invoices
@@ -149,11 +158,11 @@ const generateStatementHTML = (customer, invoices) => {
             month: 'short',
             day: 'numeric'
         }) : 'N/A';
-        const orderTotal = invoice.grandTotal ? invoice.grandTotal.toFixed(2) : '0.00';
+        const orderTotal = invoice.grandTotal ? formatCurrency(invoice.grandTotal) : '0.00';
         const payments = invoice.payments && Array.isArray(invoice.payments)
-            ? invoice.payments.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0).toFixed(2)
+            ? formatCurrency(invoice.payments.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0))
             : '0.00';
-        const balance = invoice.outstandingAmount ? invoice.outstandingAmount.toFixed(2) : '0.00';
+        const balance = invoice.outstandingAmount ? formatCurrency(invoice.outstandingAmount) : '0.00';
         const rowClass = invoice.isPastDue ? 'style="background-color: #fee2e2;"' : '';
 
         return `
@@ -323,7 +332,7 @@ const generateStatementHTML = (customer, invoices) => {
             <div class="header">
                 <div class="header-row">
                     <div class="header-content">
-                        <p>Printed on: ${printedDate}</p>
+                        <p>Generated On: ${printedDate}</p>
                         <p>Total Invoices: ${totalInvoices}</p>
                     </div>
                     <img src="{{COMPANY_LOGO}}" alt="Rapid Supplies Logo" class="header-logo">
