@@ -982,7 +982,7 @@ const handler = async (event) => {
             };
         } else if (action === 'start') {
             // 1. Get limit from request body, default to 5
-            const limit = Math.min(parseInt(body.limit || 5, 10), 50); // Max 50 to prevent abuse
+            const limit = Math.min(parseInt(requestBody.limit || 5, 10), 50); // Max 50 to prevent abuse
             if (isNaN(limit) || limit <= 0) {
                 return {
                     statusCode: 400,
