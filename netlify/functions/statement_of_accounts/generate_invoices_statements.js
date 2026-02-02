@@ -524,17 +524,10 @@ const generateEmailHTML = (customer, invoices) => {
       <td style="padding:16px 20px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
           <tr>
-            <td style="padding:12px 16px;background:#1f1f1f;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:190px;height:auto;display:block;" />
-                  </td>
-                  <td style="text-align:right;vertical-align:middle;font-size:14px;color:#d7e6c3;">
-                    <span style="display:inline-block;padding:6px 10px;background:#7fb13d;color:#ffffff;font-weight:700;border-radius:4px;letter-spacing:0.3px;">STATEMENT OF ACCOUNT</span>
-                  </td>
-                </tr>
-              </table>
+            <td style="padding:40px 16px 30px;background:#222222;text-align:center;">
+              <img src="https://www.rapidsupplies.com.au/assets/images/company_logo_white.png" alt="RapidClean Illawarra" style="max-width:240px;height:auto;display:block;margin:0 auto 20px;" />
+              <div style="font-size:28px;font-weight:700;color:#ffffff;margin-bottom:8px;letter-spacing:0.5px;">Open Statement</div>
+              <div style="font-size:16px;color:#80BB3D;font-weight:600;letter-spacing:0.3px;">Account Summary for ${customerName}</div>
             </td>
           </tr>
           <tr>
@@ -578,33 +571,38 @@ const generateEmailHTML = (customer, invoices) => {
             </td>
           </tr>
           <tr>
-            <td style="padding:12px 0 0;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
+            <td style="padding:20px 0 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
                 <tr>
-                  <td style="padding:10px 12px;background:#1f1f1f;color:#ffffff;font-size:14px;font-weight:700;">
-                    Payment Methods
+                  <td style="padding:16px 20px;background:#222222;color:#ffffff;font-size:18px;font-weight:700;text-align:center;letter-spacing:0.5px;">
+                    💳 Payment Methods
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding:12px;">
+                  <td style="padding:24px 20px;">
                     <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
                       <tr>
-                        <td style="width:50%;vertical-align:top;padding-right:10px;font-size:13px;line-height:1.6;color:#222;">
-                          <div style="font-weight:700;color:#7fb13d;margin-bottom:6px;">Banking Details</div>
-                          <div>
-                            <strong>IMB Shellharbour City</strong><br>
-                            BSB: 641-800<br>
-                            A/C: 200839104<br>
-                            Name: Rapid Illawarra Pty Ltd<br>
-                            Swiftcode: ASLLAU2C
+                        <td style="width:50%;vertical-align:top;padding-right:20px;font-size:14px;line-height:1.8;color:#222;">
+                          <div style="font-size:16px;font-weight:700;color:#80BB3D;margin-bottom:12px;display:flex;align-items:center;">
+                            🏦 Banking Details
+                          </div>
+                          <div style="background:#f9fafb;padding:12px;border-radius:6px;border-left:3px solid #80BB3D;">
+                            <div style="margin-bottom:6px;"><strong style="color:#222;">IMB Shellharbour City</strong></div>
+                            <div style="margin-bottom:4px;color:#555;"><strong>BSB:</strong> 641-800</div>
+                            <div style="margin-bottom:4px;color:#555;"><strong>A/C:</strong> 200839104</div>
+                            <div style="margin-bottom:4px;color:#555;"><strong>Name:</strong> Rapid Illawarra Pty Ltd</div>
+                            <div style="color:#555;"><strong>Swiftcode:</strong> ASLLAU2C</div>
                           </div>
                         </td>
-                        <td style="width:50%;vertical-align:top;text-align:center;padding-left:10px;">
-                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:block;margin-bottom:8px;">
-                            <img src="{{STRIPE_QR}}" alt="Stripe Payment QR" style="width:120px;height:120px;border:1px solid #e5e7eb;padding:4px;background:#ffffff;display:block;margin-left:auto;margin-right:auto;">
+                        <td style="width:50%;vertical-align:top;text-align:center;padding-left:20px;border-left:1px solid #e5e7eb;">
+                          <div style="font-size:16px;font-weight:700;color:#80BB3D;margin-bottom:12px;">
+                            💳 Pay Online
+                          </div>
+                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;margin-bottom:12px;">
+                            <img src="{{STRIPE_QR}}" alt="Stripe Payment QR" style="width:140px;height:140px;border:2px solid #e5e7eb;padding:8px;background:#ffffff;display:block;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                           </a>
-                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="background-color:#7fb13d;color:#fff;text-decoration:none;padding:8px 16px;border-radius:4px;font-weight:700;font-size:13px;display:inline-block;">Pay via Stripe</a>
-                          <div style="font-size:11px;color:#666;margin-top:6px;">Scan QR or click to pay online</div>
+                          <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="background:#80BB3D;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:700;font-size:14px;display:inline-block;box-shadow:0 2px 4px rgba(128,187,61,0.3);transition:background 0.3s;">Pay via Stripe</a>
+                          <div style="font-size:12px;color:#666;margin-top:8px;font-style:italic;">Scan QR or click button to pay securely</div>
                         </td>
                       </tr>
                     </table>
