@@ -609,7 +609,7 @@ const generateEmailHTML = (customer, invoices) => {
                   <td style="width:62%;vertical-align:middle;padding:30px;text-align:center;background:#ffffff;">
                     <div style="color:#222222;font-size:14px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.5px;">Pay Online</div>
                     <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;margin-bottom:16px;">
-                      <img src="{{STRIPE_QR}}" alt="Stripe Payment" style="width:150px;height:150px;display:block;border:2px solid #e0e0e0;margin:0 auto;">
+                      <img src="'https://www.rapidsupplies.com.au/assets/images/stripe_qr.png" alt="Stripe Payment" style="width:150px;height:150px;display:block;border:2px solid #e0e0e0;margin:0 auto;">
                     </a>
                     <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;background:#80BB3D;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:4px;font-weight:700;font-size:14px;letter-spacing:0.5px;">PAY NOW</a>
                   </td>
