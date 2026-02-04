@@ -498,37 +498,43 @@ const generateEmailHTML = (customer, invoices) => {
             <td style="padding:0;">
               <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#f8f9fa;">
                 <tr>
-                  <td style="width:38%;vertical-align:middle;padding:20px;border-right:1px solid #e0e0e0;">
-                    <div style="color:#222222;font-size:13px;font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Bank Transfer</div>
-                    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                  <td style="width:50%;vertical-align:middle;padding:30px;text-align:center;border-right:1px solid #e0e0e0;">
+                    <div style="color:#222222;font-size:14px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.5px;">Bank Transfer</div>
+                    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto;">
                       <tr>
-                        <td style="padding:3px 0;font-size:13px;color:#666;width:35%;">Bank</td>
-                        <td style="padding:3px 0;font-size:13px;color:#222;font-weight:600;">IMB Shellharbour City</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#666;text-align:left;">Bank</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#222;font-weight:600;text-align:left;">IMB Shellharbour City</td>
                       </tr>
                       <tr>
-                        <td style="padding:3px 0;font-size:13px;color:#666;">BSB</td>
-                        <td style="padding:3px 0;font-size:13px;color:#222;font-weight:600;">641-800</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#666;text-align:left;">BSB</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#222;font-weight:600;text-align:left;">641-800</td>
                       </tr>
                       <tr>
-                        <td style="padding:3px 0;font-size:13px;color:#666;">Account</td>
-                        <td style="padding:3px 0;font-size:13px;color:#222;font-weight:600;">200839104</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#666;text-align:left;">Account</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#222;font-weight:600;text-align:left;">200839104</td>
                       </tr>
                       <tr>
-                        <td style="padding:3px 0;font-size:13px;color:#666;">Name</td>
-                        <td style="padding:3px 0;font-size:13px;color:#222;font-weight:600;">Rapid Illawarra Pty Ltd</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#666;text-align:left;">Name</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#222;font-weight:600;text-align:left;">Rapid Illawarra Pty Ltd</td>
                       </tr>
                       <tr>
-                        <td style="padding:3px 0;font-size:13px;color:#666;">Swift</td>
-                        <td style="padding:3px 0;font-size:13px;color:#222;font-weight:600;">ASLLAU2C</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#666;text-align:left;">Swift</td>
+                        <td style="padding:3px 8px;font-size:13px;color:#222;font-weight:600;text-align:left;">ASLLAU2C</td>
                       </tr>
                     </table>
                   </td>
-                  <td style="width:62%;vertical-align:middle;padding:30px;text-align:center;background:#ffffff;">
-                    <div style="color:#222222;font-size:14px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.5px;">Pay Online</div>
-                    <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;margin-bottom:16px;">
-                      <img src="https://www.rapidsupplies.com.au/assets/images/stripe_qr.png" alt="Stripe Payment" style="width:150px;height:150px;display:block;border:2px solid #e0e0e0;margin:0 auto;">
-                    </a>
-                    <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;background:#80BB3D;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:4px;font-weight:700;font-size:14px;letter-spacing:0.5px;">PAY NOW</a>
+                  <td style="width:50%;vertical-align:middle;padding:30px;background:#ffffff;">
+                    <div style="text-align:center;">
+                      <div style="color:#222222;font-size:14px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.5px;">Pay Via Stripe</div>
+                      <div style="margin-bottom:16px;">
+                        <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;">
+                          <img src="https://www.rapidsupplies.com.au/assets/images/stripe_qr.png" alt="Stripe Payment" style="width:150px;height:150px;display:block;border:2px solid #e0e0e0;">
+                        </a>
+                      </div>
+                      <div>
+                        <a href="https://buy.stripe.com/dRm9AUexncD0fQacewaZi00" style="display:inline-block;background:#80BB3D;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:4px;font-weight:700;font-size:14px;letter-spacing:0.5px;">PAY NOW</a>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               </table>
