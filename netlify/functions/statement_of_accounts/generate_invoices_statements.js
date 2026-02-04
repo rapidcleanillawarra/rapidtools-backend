@@ -263,34 +263,35 @@ const handler = async (event) => {
 
             console.log(`After filtering: ${orders.length} orders remaining`);
 
-            // Group orders by customer and apply limit
+            // Initialize customer entries for all valid customers (even those with no orders)
             const customersWithInvoices = {};
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Set to start of day for date comparison
+
+            // Pre-populate all valid customers to ensure they're included even with no orders
+            for (const username of validCustomers) {
+                const customerApiData = customerDataMap[username];
+                const billingAddress = customerApiData?.BillingAddress || {};
+                const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress);
+
+                customersWithInvoices[username] = {
+                    customer_username: username,
+                    email: customerApiData?.EmailAddress || '',
+                    billing_address: billingAddress,
+                    pdf_customer_name: pdfCustomerName,
+                    total_orders: 0,
+                    total_balance: 0,
+                    due_invoice_balance: 0,
+                    invoices: []
+                };
+            }
 
             orders.forEach(order => {
                 const username = order.Username;
                 if (!username || !customers.includes(username)) return;
 
-                // Get BillingAddress from customer API data, not from order
-                const customerApiData = customerDataMap[username];
-                const billingAddress = customerApiData?.BillingAddress || {};
-                
-                // Use customer API's BillingAddress for pdf_customer_name
-                const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress);
-
-                if (!customersWithInvoices[username]) {
-                    customersWithInvoices[username] = {
-                        customer_username: username,
-                        email: customerApiData?.EmailAddress || order.Email || '',
-                        billing_address: billingAddress,
-                        pdf_customer_name: pdfCustomerName,
-                        total_orders: 0,
-                        total_balance: 0,
-                        due_invoice_balance: 0,
-                        invoices: []
-                    };
-                }
+                // Skip if customer entry doesn't exist (shouldn't happen since we pre-populate)
+                if (!customersWithInvoices[username]) return;
 
                 const grandTotal = parseFloat(order.GrandTotal || 0);
                 const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
