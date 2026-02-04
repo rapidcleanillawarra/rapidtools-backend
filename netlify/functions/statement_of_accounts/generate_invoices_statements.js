@@ -531,6 +531,114 @@ const handler = async (event) => {
                     timestamp: new Date().toISOString()
                 })
             };
+        } else if (action === 'save') {
+            console.log('=== SAVE ACTION STARTED ===');
+
+            // Validate required fields
+            const { customer_username, sent, pdf_link, bounced, customer_email } = requestBody;
+
+            if (!customer_username || typeof customer_username !== 'string' || customer_username.trim() === '') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Validation Error',
+                        message: 'customer_username is required and must be a non-empty string'
+                    })
+                };
+            }
+
+            if (sent === undefined || typeof sent !== 'boolean') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Validation Error',
+                        message: 'sent is required and must be a boolean'
+                    })
+                };
+            }
+
+            // Validate optional fields
+            if (pdf_link !== undefined && pdf_link !== null && typeof pdf_link !== 'string') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Validation Error',
+                        message: 'pdf_link must be a string or null'
+                    })
+                };
+            }
+
+            if (bounced !== undefined && bounced !== null && typeof bounced !== 'boolean') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Validation Error',
+                        message: 'bounced must be a boolean or null'
+                    })
+                };
+            }
+
+            if (customer_email !== undefined && customer_email !== null && typeof customer_email !== 'string') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Validation Error',
+                        message: 'customer_email must be a string or null'
+                    })
+                };
+            }
+
+            console.log('Validation passed, inserting record...');
+
+            // Insert record into statement_of_accounts table
+            const { data, error } = await supabase
+                .from('statement_of_accounts')
+                .insert({
+                    customer_username: customer_username.trim(),
+                    sent,
+                    pdf_link: pdf_link || null,
+                    bounced: bounced !== undefined ? bounced : null,
+                    customer_email: customer_email || null
+                })
+                .select('id, customer_username, created_at')
+                .single();
+
+            if (error) {
+                console.error('Supabase insert error:', error);
+                return {
+                    statusCode: 500,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Database Error',
+                        message: `Failed to save record: ${error.message}`,
+                        details: error
+                    })
+                };
+            }
+
+            console.log('Record saved successfully:', data);
+
+            return {
+                statusCode: 201,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Statement of account record saved successfully',
+                    data,
+                    timestamp: new Date().toISOString()
+                })
+            };
         } else {
             // Handle unsupported actions
             return {
@@ -539,7 +647,7 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: false,
                     error: 'Invalid action',
-                    message: 'Supported actions: "customers_only", "invoices", "start"'
+                    message: 'Supported actions: "customers_only", "invoices", "start", "save"'
                 })
             };
         }
