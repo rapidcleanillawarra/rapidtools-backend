@@ -600,14 +600,18 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const shippingTotal = parseFloat(order.ShippingTotal || 0);
   const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
   const shippingOption = order.ShippingOption || 'Local';
-  // GST is calculated on subtotal after applying discounts
+  // GST is summed from OrderLine.Tax (FRE tax-free lines have Tax: "0.00")
   const subtotalBeforeGst = (productSubtotal - totalProductDiscount) + shippingTotal - shippingDiscount;
-  const gst = subtotalBeforeGst * 0.10;
+  const gst = (orderLines || []).reduce((sum, line) => {
+    return sum + parseFloat(line.Tax || 0);
+  }, 0);
   const grandTotal = subtotalBeforeGst + gst;
 
-  // Calculate total amount paid from OrderPayment array
+  // Calculate total amount paid from OrderPayment array (Account Credit subtracts from total)
   const amountPaid = (order.OrderPayment || []).reduce((total, payment) => {
-    return total + parseFloat(payment.Amount || 0);
+    const amount = parseFloat(payment.Amount || 0);
+    const isAccountCredit = (payment.PaymentType || '').toLowerCase().includes('account credit');
+    return isAccountCredit ? total - amount : total + amount;
   }, 0);
 
   // Determine payment terms - if fully paid, show "Paid", otherwise use original terms
@@ -1043,7 +1047,10 @@ const handler = async (event) => {
             "ShippingOption",
             "ShippingTotal",
             "ShippingDiscount",
-            "OrderPayment"
+            "OrderPayment",
+            "OrderPayment.PaymentType",
+            "OrderLine.Tax",
+            "OrderLine.TaxCode"
           ]
         },
         "action": "GetOrder"
