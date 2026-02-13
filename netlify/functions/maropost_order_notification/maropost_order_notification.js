@@ -608,11 +608,10 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const taxInclusive = String(order.TaxInclusive || '').toLowerCase() === 'true';
   const grandTotal = taxInclusive ? subtotalBeforeGst : subtotalBeforeGst + gst;
 
-  // Calculate total amount paid from OrderPayment array (Account Credit subtracts from total)
+  // Calculate total amount paid from OrderPayment array (Account Credit adds to total like other payments)
   const amountPaid = (order.OrderPayment || []).reduce((total, payment) => {
     const amount = parseFloat(payment.Amount || 0);
-    const isAccountCredit = (payment.PaymentType || '').toLowerCase().includes('account credit');
-    return isAccountCredit ? total - amount : total + amount;
+    return total + amount;
   }, 0);
 
   // Determine payment terms - if fully paid, show "Paid", otherwise use original terms
