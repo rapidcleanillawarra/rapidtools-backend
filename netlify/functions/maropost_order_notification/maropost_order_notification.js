@@ -605,7 +605,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const gst = (orderLines || []).reduce((sum, line) => {
     return sum + parseFloat(line.Tax || 0);
   }, 0);
-  const grandTotal = subtotalBeforeGst + gst;
+  const taxInclusive = String(order.TaxInclusive || '').toLowerCase() === 'true';
+  const grandTotal = taxInclusive ? subtotalBeforeGst : subtotalBeforeGst + gst;
 
   // Calculate total amount paid from OrderPayment array (Account Credit subtracts from total)
   const amountPaid = (order.OrderPayment || []).reduce((total, payment) => {
@@ -852,7 +853,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                 <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee; color: #d32f2f;">-${formatCurrency(totalProductDiscount)}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">GST (10%):</td>
+                <td style="padding: 8px 0; color: #666; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${taxInclusive ? 'GST Included:' : 'GST (10%):'}</td>
                 <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right; border-bottom: 1px solid #eee;">${formatCurrency(gst)}</td>
               </tr>
               ${shippingDiscount > 0 ? `
@@ -1050,7 +1051,8 @@ const handler = async (event) => {
             "OrderPayment",
             "OrderPayment.PaymentType",
             "OrderLine.Tax",
-            "OrderLine.TaxCode"
+            "OrderLine.TaxCode",
+            "TaxInclusive"
           ]
         },
         "action": "GetOrder"
