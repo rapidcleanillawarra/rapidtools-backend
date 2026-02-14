@@ -547,8 +547,42 @@ const formatBillAddress = (order) => {
   return parts;
 };
 
+/**
+ * Trace related order IDs from a links response (ID + RelatedOrderID).
+ * Builds chains by following RelatedOrderID to root, then returns all order IDs in the same chain as currentOrderId.
+ * @param {Array} orders - Array of { ID, RelatedOrderID } from first GetOrder call
+ * @param {string} currentOrderId - The main order ID (e.g. payload.OrderID)
+ * @returns {string[]} Order IDs in the same chain (including current)
+ */
+function traceRelatedOrderIds(orders, currentOrderId) {
+  if (!orders || !Array.isArray(orders) || orders.length === 0 || !currentOrderId) return [];
+  const idToParent = {};
+  const allIds = new Set();
+  orders.forEach((o) => {
+    const id = o.ID || o.OrderID;
+    if (id) allIds.add(id);
+    const parent = o.RelatedOrderID;
+    if (parent && String(parent).trim() !== '') idToParent[id] = parent;
+  });
+  const getRoot = (id) => {
+    const seen = new Set();
+    let current = id;
+    while (current && idToParent[current] && !seen.has(current)) {
+      seen.add(current);
+      current = idToParent[current];
+    }
+    return current || id;
+  };
+  const root = getRoot(currentOrderId);
+  const related = [];
+  allIds.forEach((id) => {
+    if (getRoot(id) === root) related.push(id);
+  });
+  return related;
+}
+
 // Generate HTML template for Tax Invoice PDF
-const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, documentId) => {
+const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails = null) => {
   // Extract order data
   const order = orderDetails?.Order?.[0];
   if (!order) {
@@ -719,6 +753,43 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     }
   }
 
+  // Related orders table (Order ID, Product Total, Payments, Account Credit) – before calculation section
+  let relatedOrdersTableHtml = '';
+  if (relatedOrdersWithDetails && relatedOrdersWithDetails.Order && relatedOrdersWithDetails.Order.length > 0) {
+    const relatedRows = relatedOrdersWithDetails.Order.map((ord) => {
+      const oid = ord.ID || ord.OrderID || '';
+      const productTotal = parseFloat(ord.GrandTotal || 0);
+      const payments = (ord.OrderPayment || []).reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0);
+      const accountCredit = (ord.OrderPayment || []).reduce(
+        (sum, p) => sum + (String(p.PaymentType || '') === 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
+        0
+      );
+      return `
+        <tr style="background-color: #fff;">
+          <td style="padding: 10px 8px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(oid)}</td>
+          <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(productTotal)}</td>
+          <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(payments)}</td>
+          <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(accountCredit)}</td>
+        </tr>`;
+    }).join('');
+    relatedOrdersTableHtml = `
+    <div style="margin-bottom: 30px; page-break-inside: avoid; break-inside: avoid;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #e0e0e0; font-size: 13px;">
+        <thead>
+          <tr style="background-color: #f0f0f0;">
+            <th style="padding: 12px 8px; text-align: left; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Order ID</th>
+            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Product Total</th>
+            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Payments</th>
+            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Account Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${relatedRows}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
   // Generate the HTML invoice
   const html = `
 <!DOCTYPE html>
@@ -831,6 +902,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
         ${orderItemsRows}
       </tbody>
     </table>
+
+    ${relatedOrdersTableHtml}
 
     <!-- Totals -->
     <div style="page-break-inside: avoid; break-inside: avoid;">
@@ -1160,6 +1233,63 @@ const handler = async (event) => {
       }
     };
 
+    // Fetch related order links (ID + RelatedOrderID) for tracing chains
+    const fetchRelatedOrderLinks = async (username) => {
+      const orderEndpoint = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+      const payload = {
+        Filter: {
+          Username: username,
+          OrderStatus: ['New Backorder', 'Backorder Approved', 'Dispatched'],
+          OutputSelector: ['ID', 'RelatedOrderID']
+        },
+        action: 'GetOrder'
+      };
+      const response = await fetch(orderEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Related order links failed: ${response.status}`);
+      return response.json();
+    };
+
+    // Fetch full details for related orders (for table: Product Total, Payments, Account Credit)
+    const fetchRelatedOrdersDetails = async (username, orderIds) => {
+      if (!orderIds || orderIds.length === 0) return null;
+      const orderEndpoint = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
+      const payload = {
+        Filter: {
+          Username: username,
+          OrderID: orderIds,
+          OrderStatus: ['New Backorder', 'Backorder Approved', 'Dispatched'],
+          OutputSelector: [
+            'ID',
+            'OrderStatus',
+            'RelatedOrderID',
+            'OrderLine',
+            'OrderLine.OrderLineID',
+            'OrderLine.ProductName',
+            'OrderLine.UnitPrice',
+            'OrderLine.Quantity',
+            'OrderLine.Qty',
+            'OrderLine.SKU',
+            'OrderPayment',
+            'OrderPayment.PaymentType',
+            'TaxInclusive',
+            'GrandTotal'
+          ]
+        },
+        action: 'GetOrder'
+      };
+      const response = await fetch(orderEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Related orders details failed: ${response.status}`);
+      return response.json();
+    };
+
     // Fetch related backorder information
     let relatedBackorders = null;
     try {
@@ -1191,6 +1321,26 @@ const handler = async (event) => {
     } catch (backorderError) {
       console.error('Failed to fetch related backorders:', backorderError.message);
       // Continue processing even if backorder fetch fails
+    }
+
+    // Fetch related orders (chain via ID + RelatedOrderID), then full details for table
+    let relatedOrdersWithDetails = null;
+    try {
+      const username = orderDetails?.Order?.[0]?.Username;
+      if (username) {
+        const linksResponse = await fetchRelatedOrderLinks(username);
+        const relatedIds = traceRelatedOrderIds(linksResponse?.Order || [], payload.OrderID);
+        if (relatedIds.length > 0) {
+          relatedOrdersWithDetails = await fetchRelatedOrdersDetails(username, relatedIds);
+          console.log('Related orders with details fetched:', {
+            main_order_id: payload.OrderID,
+            related_count: relatedOrdersWithDetails?.Order?.length || 0,
+            related_ids: relatedIds
+          });
+        }
+      }
+    } catch (relatedOrdersError) {
+      console.error('Failed to fetch related orders for table:', relatedOrdersError.message);
     }
 
     // Fetch product images using the same endpoint
@@ -1307,7 +1457,7 @@ const handler = async (event) => {
     let taxInvoiceHtml = null;
     if (orderDetails && (payload.Display === 'pdf' || payload.Display === 'data')) {
       try {
-        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders, documentId);
+        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails);
         console.log('Tax Invoice HTML template generated successfully');
       } catch (invoiceError) {
         console.error('Failed to generate Tax Invoice HTML template:', {
