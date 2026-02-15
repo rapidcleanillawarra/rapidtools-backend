@@ -759,7 +759,10 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     const relatedRows = relatedOrdersWithDetails.Order.map((ord) => {
       const oid = ord.ID || ord.OrderID || '';
       const productTotal = parseFloat(ord.GrandTotal || 0);
-      const payments = (ord.OrderPayment || []).reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0);
+      const payments = (ord.OrderPayment || []).reduce(
+        (sum, p) => sum + (String(p.PaymentType || '') !== 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
+        0
+      );
       const accountCredit = (ord.OrderPayment || []).reduce(
         (sum, p) => sum + (String(p.PaymentType || '') === 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
         0
