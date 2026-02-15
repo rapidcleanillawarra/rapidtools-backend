@@ -165,7 +165,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     }
   }
 
-  // Related orders table (Order ID, Product Total, Payments, Account Credit, Amount Owed) – before calculation section
+  // Related orders table (Order ID, Status, Order Total, Payments, Account Credit, Amount Owed) – before calculation section
   let relatedOrdersTableHtml = '';
   if (relatedOrdersWithDetails && relatedOrdersWithDetails.Order && relatedOrdersWithDetails.Order.length > 0) {
     const relatedRows = relatedOrdersWithDetails.Order.map((ord) => {
@@ -180,9 +180,11 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
         0
       );
       const amountOwed = productTotal - payments;
+      const status = ord.OrderStatus || 'N/A';
       return `
         <tr style="background-color: #fff;">
           <td style="padding: 10px 8px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(oid)}</td>
+          <td style="padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(status)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(productTotal)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(payments)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(accountCredit)}</td>
@@ -202,7 +204,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
         <thead>
           <tr style="background-color: #f0f0f0;">
             <th style="padding: 12px 8px; text-align: left; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Order ID</th>
-            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Product Total</th>
+            <th style="padding: 12px 8px; text-align: left; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Status</th>
+            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Order Total</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Payments</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Account Credit</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Amount Owed</th>
