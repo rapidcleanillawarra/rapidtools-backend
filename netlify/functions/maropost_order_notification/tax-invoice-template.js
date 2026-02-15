@@ -189,6 +189,13 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     }).join('');
     relatedOrdersTableHtml = `
     <div style="margin-bottom: 30px; page-break-inside: avoid; break-inside: avoid;">
+       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
+         <tr>
+           <td style="background-color: #222; padding: 10px 15px; border-radius: 4px;">
+             <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #fff;">Related Orders</h3>
+           </td>
+         </tr>
+       </table>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #e0e0e0; font-size: 13px;">
         <thead>
           <tr style="background-color: #f0f0f0;">
