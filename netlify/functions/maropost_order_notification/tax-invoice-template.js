@@ -66,6 +66,24 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
 
   const balanceDue = Math.max(0, grandTotal - amountPaid);
 
+  // Sum Amount Owed for related orders with status "Dispatched" (when related orders available)
+  let dispatchedAmountOwedSum = 0;
+  if (relatedOrdersWithDetails?.Order?.length) {
+    dispatchedAmountOwedSum = relatedOrdersWithDetails.Order
+      .filter((ord) => String(ord.OrderStatus || '').trim() === 'Dispatched')
+      .reduce((sum, ord) => {
+        const productTotal = parseFloat(ord.GrandTotal || 0);
+        const payments = (ord.OrderPayment || []).reduce(
+          (s, p) => s + (String(p.PaymentType || '') !== 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
+          0
+        );
+        const amountOwed = Math.max(0, productTotal - payments);
+        return sum + amountOwed;
+      }, 0);
+  }
+  const totalBalance = balanceDue + dispatchedAmountOwedSum;
+  const hasRelatedOrders = relatedOrdersWithDetails?.Order?.length > 0;
+
   // Format addresses
   const shipAddressLines = formatShipAddress(order);
   const billAddressLines = formatBillAddress(order);
@@ -374,6 +392,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                  <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Invoice Balance:</td>
                  <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
               </tr>
+              ${hasRelatedOrders ? `
+              <tr>
+                 <td style="padding: 10px 0; color: ${totalBalance === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${totalBalance === 0 ? '900' : '700'}; text-align: right;">Total Balance:</td>
+                 <td style="padding: 10px 0 10px 15px; color: ${totalBalance === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${totalBalance === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(totalBalance)}</td>
+              </tr>
+              ` : ''}
             </table>
           </td>
         </tr>
