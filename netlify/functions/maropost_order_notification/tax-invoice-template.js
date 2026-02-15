@@ -199,9 +199,12 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
       );
       const amountOwed = productTotal - payments;
       const status = ord.OrderStatus || 'N/A';
+      const isCurrentOrder = String(oid) === String(orderId);
+      const rowBg = isCurrentOrder ? '#e8f5e9' : '#fff';
+      const orderIdDisplay = isCurrentOrder ? `${escapeHtml(oid)} (Current)` : escapeHtml(oid);
       return `
-        <tr style="background-color: #fff;">
-          <td style="padding: 10px 8px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(oid)}</td>
+        <tr style="background-color: ${rowBg};">
+          <td style="padding: 10px 8px; border-bottom: 1px solid #eee; color: #333;">${orderIdDisplay}</td>
           <td style="padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(status)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(productTotal)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(payments)}</td>
