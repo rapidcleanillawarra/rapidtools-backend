@@ -371,7 +371,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                  <td style="padding: 8px 0 8px 15px; font-weight: 600; font-size: 13px; text-align: right;">${formatCurrency(amountPaid)}</td>
               </tr>
               <tr>
-                 <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Balance Due:</td>
+                 <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Invoice Balance:</td>
                  <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
               </tr>
             </table>
