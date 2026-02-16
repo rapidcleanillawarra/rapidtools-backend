@@ -83,6 +83,9 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   }
   const totalBalance = balanceDue + dispatchedAmountOwedSum;
   const hasRelatedOrders = relatedOrdersWithDetails?.Order?.length > 0;
+  const hasOtherRelatedOrders = (relatedOrdersWithDetails?.Order || []).some(
+    (ord) => String(ord.ID || ord.OrderID || '') !== String(orderId)
+  );
 
   // Format addresses
   const shipAddressLines = formatShipAddress(order);
@@ -185,7 +188,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
 
   // Related orders table (Order ID, Status, Order Total, Payments, Account Credit, Amount Owed) – before calculation section
   let relatedOrdersTableHtml = '';
-  if (relatedOrdersWithDetails && relatedOrdersWithDetails.Order && relatedOrdersWithDetails.Order.length > 0) {
+  if (hasOtherRelatedOrders && relatedOrdersWithDetails && relatedOrdersWithDetails.Order && relatedOrdersWithDetails.Order.length > 0) {
     const relatedRows = relatedOrdersWithDetails.Order.map((ord) => {
       const oid = ord.ID || ord.OrderID || '';
       const productTotal = parseFloat(ord.GrandTotal || 0);
@@ -395,7 +398,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
                  <td style="padding: 10px 0; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">Invoice Balance:</td>
                  <td style="padding: 10px 0 10px 15px; color: ${balanceDue === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${balanceDue === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(balanceDue)}</td>
               </tr>
-              ${hasRelatedOrders ? `
+              ${hasOtherRelatedOrders ? `
               <tr>
                  <td style="padding: 10px 0; color: ${totalBalance === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${totalBalance === 0 ? '900' : '700'}; text-align: right;">Total Balance:</td>
                  <td style="padding: 10px 0 10px 15px; color: ${totalBalance === 0 ? '#28a745' : '#80BB3D'}; font-size: 18px; font-weight: ${totalBalance === 0 ? '900' : '700'}; text-align: right;">${formatCurrency(totalBalance)}</td>
