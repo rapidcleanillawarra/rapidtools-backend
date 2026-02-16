@@ -6,7 +6,7 @@ const { generateDispatchEmailHTML } = require('./dispatch-email-template');
 const { generateTaxInvoiceHTML } = require('./tax-invoice-template');
 
 // Import fetchers
-const { fetchOrderData, fetchRelatedBackorders, fetchRelatedOrderLinks, fetchRelatedOrdersDetails, fetchProductImages, getPreferredImage } = require('./fetchers');
+const { fetchOrderData, fetchRelatedBackorders, fetchRelatedOrderLinks, fetchRelatedOrdersDetails, fetchRmaByOrderId, fetchProductImages, getPreferredImage } = require('./fetchers');
 
 const handler = async (event) => {
   // Add CORS headers for production
@@ -171,6 +171,33 @@ const handler = async (event) => {
       console.error('Failed to fetch related orders for table:', relatedOrdersError.message);
     }
 
+    // Fetch RMA (RefundTotal) for each related order for the Related Orders table
+    let rmaByOrderId = {};
+    if (relatedOrdersWithDetails?.Order?.length > 0) {
+      const rmaResults = await Promise.allSettled(
+        relatedOrdersWithDetails.Order.map((ord) => {
+          const oid = ord.ID || ord.OrderID || '';
+          return oid ? fetchRmaByOrderId(oid) : Promise.resolve({ Rma: '' });
+        })
+      );
+      relatedOrdersWithDetails.Order.forEach((ord, i) => {
+        const oid = ord.ID || ord.OrderID || '';
+        if (!oid) return;
+        const result = rmaResults[i];
+        if (result.status === 'fulfilled' && result.value) {
+          const rma = result.value.Rma;
+          const refundTotal =
+            rma && typeof rma === 'object' && rma.RefundTotal != null && rma.RefundTotal !== ''
+              ? parseFloat(rma.RefundTotal)
+              : 0;
+          rmaByOrderId[oid] = refundTotal;
+        } else {
+          rmaByOrderId[oid] = 0;
+        }
+      });
+      console.log('RMA data fetched for related orders:', { order_ids: Object.keys(rmaByOrderId), rma_by_order: rmaByOrderId });
+    }
+
     // Fetch product images for order items (main order + backorders)
     let productImages = null;
     try {
@@ -230,7 +257,7 @@ const handler = async (event) => {
     let taxInvoiceHtml = null;
     if (orderDetails && (payload.Display === 'pdf' || payload.Display === 'data')) {
       try {
-        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails);
+        taxInvoiceHtml = generateTaxInvoiceHTML(orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails, rmaByOrderId);
         console.log('Tax Invoice HTML template generated successfully');
       } catch (invoiceError) {
         console.error('Failed to generate Tax Invoice HTML template:', {

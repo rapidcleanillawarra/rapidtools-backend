@@ -1,7 +1,7 @@
 const { escapeHtml, formatInvoiceDate, formatCurrency, formatShipAddress, formatBillAddress, getOrderLineSequence } = require('./utils');
 
 // Generate HTML template for Tax Invoice PDF
-const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails = null) => {
+const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, documentId, relatedOrdersWithDetails = null, rmaByOrderId = null) => {
   // Extract order data
   const order = orderDetails?.Order?.[0];
   if (!order) {
@@ -66,22 +66,24 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
 
   const balanceDue = Math.max(0, grandTotal - amountPaid);
 
-  // Sum Amount Owed for related orders with status "Dispatched" (when related orders available)
+  // Sum Amount Owed for related orders with status "Dispatched" (when related orders available). RMA deducts from amount owed.
   let dispatchedAmountOwedSum = 0;
   if (relatedOrdersWithDetails?.Order?.length) {
     dispatchedAmountOwedSum = relatedOrdersWithDetails.Order
       .filter((ord) => String(ord.OrderStatus || '').trim() === 'Dispatched')
       .reduce((sum, ord) => {
+        const oid = ord.ID || ord.OrderID || '';
         const productTotal = parseFloat(ord.GrandTotal || 0);
         const payments = (ord.OrderPayment || []).reduce(
           (s, p) => s + (String(p.PaymentType || '') !== 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
           0
         );
-        const amountOwed = Math.max(0, productTotal - payments);
+        const rmaAmount = (rmaByOrderId && rmaByOrderId[oid] != null) ? rmaByOrderId[oid] : 0;
+        const amountOwed = Math.max(0, productTotal - payments - rmaAmount);
         return sum + amountOwed;
       }, 0);
   }
-  const totalBalance = balanceDue + dispatchedAmountOwedSum;
+  const totalBalance = dispatchedAmountOwedSum;
   const hasRelatedOrders = relatedOrdersWithDetails?.Order?.length > 0;
   const hasOtherRelatedOrders = (relatedOrdersWithDetails?.Order || []).some(
     (ord) => String(ord.ID || ord.OrderID || '') !== String(orderId)
@@ -200,7 +202,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
         (sum, p) => sum + (String(p.PaymentType || '') === 'Account Credit' ? parseFloat(p.Amount || 0) : 0),
         0
       );
-      const amountOwed = productTotal - payments;
+      const rmaAmount = (rmaByOrderId && rmaByOrderId[oid] != null) ? rmaByOrderId[oid] : 0;
+      const amountOwed = Math.max(0, productTotal - payments - rmaAmount);
       const status = ord.OrderStatus || 'N/A';
       const isCurrentOrder = String(oid) === String(orderId);
       const rowBg = isCurrentOrder ? '#e8f5e9' : '#fff';
@@ -212,6 +215,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(productTotal)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(payments)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(accountCredit)}</td>
+          <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(rmaAmount)}</td>
           <td style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; color: #333;">${formatCurrency(amountOwed)}</td>
         </tr>`;
     }).join('');
@@ -232,6 +236,7 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Order Total</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Payments</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Account Credit</th>
+            <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">RMA</th>
             <th style="padding: 12px 8px; text-align: right; font-weight: 700; color: #333; border-bottom: 1px solid #ddd;">Amount Owed</th>
           </tr>
         </thead>

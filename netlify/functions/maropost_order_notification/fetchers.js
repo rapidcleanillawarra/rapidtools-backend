@@ -178,6 +178,45 @@ const fetchRelatedOrdersDetails = async (username, orderIds) => {
   return response.json();
 };
 
+// Fetch RMA for an order (GetRma) – returns RefundTotal when present
+const fetchRmaByOrderId = async (orderId) => {
+  const payload = {
+    Filter: {
+      OrderID: [orderId],
+      OutputSelector: [
+        'OrderID',
+        'InvoiceNumber',
+        'CustomerUsername',
+        'StaffUsername',
+        'PurchaseOrderNumber',
+        'InternalNotes',
+        'CurrencyCode',
+        'RmaStatus',
+        'ShippingRefundAmount',
+        'ShippingRefundTaxCode',
+        'SurchargeRefundAmount',
+        'RefundSubtotal',
+        'RefundTotal',
+        'RefundTaxTotal',
+        'TaxInclusive',
+        'DateIssued',
+        'DateUpdated',
+        'DateApproved',
+        'RefundedTotal',
+        'Refund'
+      ]
+    },
+    action: 'GetRma'
+  };
+  const response = await fetch(POWER_AUTOMATE_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(`GetRma failed: ${response.status}`);
+  return response.json();
+};
+
 // Fetch product images using the same endpoint
 const fetchProductImages = async (skus) => {
   const imagePayload = {
@@ -236,6 +275,7 @@ module.exports = {
   fetchRelatedBackorders,
   fetchRelatedOrderLinks,
   fetchRelatedOrdersDetails,
+  fetchRmaByOrderId,
   fetchProductImages,
   getPreferredImage
 };
