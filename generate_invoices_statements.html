@@ -479,6 +479,40 @@
             transform: none;
             box-shadow: none;
         }
+
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 16px;
+            font-size: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .search-results-count {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -516,6 +550,10 @@
 
                 <div class="customers-section">
                     <h2>Customer Data</h2>
+                    <div class="search-container">
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search by username, email, or company name...">
+                        <span class="search-results-count" id="searchResultsCount"></span>
+                    </div>
                     <table class="customers-table" id="customersTable">
                         <thead>
                             <tr>
@@ -573,6 +611,8 @@
         const invoicesContainer = document.getElementById('invoicesContainer');
         const totalCustomers = document.getElementById('totalCustomers');
         const customersTableBody = document.getElementById('customersTableBody');
+        const searchInput = document.getElementById('searchInput');
+        const searchResultsCount = document.getElementById('searchResultsCount');
 
         // Modal elements
         const pdfModal = document.getElementById('pdfModal');
@@ -582,13 +622,46 @@
         const pdfErrorText = document.getElementById('pdfErrorText');
         const pdfContent = document.getElementById('pdfContent');
 
-        // Select All checkbox functionality
+        // Select All checkbox functionality (only affects visible rows when searching)
         selectAllCheckbox.addEventListener('change', (e) => {
-            const checkboxes = document.querySelectorAll('.customer-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = e.target.checked;
+            const rows = document.querySelectorAll('#customersTableBody tr');
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const checkbox = row.querySelector('.customer-checkbox');
+                    if (checkbox) checkbox.checked = e.target.checked;
+                }
             });
         });
+
+        // Search table functionality
+        function filterTable() {
+            const query = searchInput.value.trim().toLowerCase();
+            const rows = document.querySelectorAll('#customersTableBody tr');
+            const noDataRow = customersTableBody.querySelector('.no-data');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                if (noDataRow && row === noDataRow) {
+                    row.style.display = '';
+                    return;
+                }
+                const text = row.textContent.toLowerCase();
+                const matches = !query || text.includes(query);
+                row.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+
+            const total = rows.length - (noDataRow ? 1 : 0);
+            if (total > 0) {
+                searchResultsCount.textContent = query
+                    ? `Showing ${visibleCount} of ${total} customers`
+                    : `${total} customers`;
+            } else {
+                searchResultsCount.textContent = '';
+            }
+        }
+
+        searchInput.addEventListener('input', filterTable);
 
         // Modal functionality
         function showModal() {
@@ -867,6 +940,11 @@
             }).join('');
 
             results.style.display = 'block';
+
+            // Reset search and update count
+            searchInput.value = '';
+            searchResultsCount.textContent = data.customers.length ? `${data.customers.length} customers` : '';
+            filterTable(); // Clear any row display overrides from previous search
         }
 
         function updateInvoicesResults(data) {
