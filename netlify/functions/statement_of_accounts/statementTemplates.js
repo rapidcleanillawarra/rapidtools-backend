@@ -1,3 +1,5 @@
+const { renderStatementTable, formatCurrency: formatCurrencyTable, sortInvoicesByDatePlaced } = require('./statementTable');
+
 /**
  * Generate HTML statement template for a customer
  * @param {Object} customer - Customer data object with pdf_customer_name
@@ -5,13 +7,7 @@
  * @returns {string} Complete HTML document for the PDF statement
  */
 const generateStatementHTML = (customer, invoices) => {
-    // Helper function to format currency with commas
-    const formatCurrency = (amount) => {
-        if (amount === null || amount === undefined) return '0.00';
-        const num = parseFloat(amount);
-        if (isNaN(num)) return '0.00';
-        return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
+    const formatCurrency = (amount) => formatCurrencyTable(amount, { includeSymbol: false });
 
     const customerName = customer.pdf_customer_name || customer.customer_username || 'Customer';
     const totalInvoices = customer.total_orders || invoices.length;
@@ -28,65 +24,21 @@ const generateStatementHTML = (customer, invoices) => {
         timeZone: 'Australia/Sydney'
     });
 
-    // Calculate date range from invoices
+    // Date range from invoices (same sort as table)
     let dateRange = '';
-    if (invoices.length > 0) {
-        const dates = invoices.map(invoice => new Date(invoice.datePaymentDue)).filter(date => !isNaN(date));
+    const sortedForRange = sortInvoicesByDatePlaced(invoices);
+    if (sortedForRange.length > 0) {
+        const dates = sortedForRange.map(inv => new Date(inv.datePaymentDue)).filter(d => !isNaN(d.getTime()));
         if (dates.length > 0) {
             const minDate = new Date(Math.min(...dates));
             const maxDate = new Date(Math.max(...dates));
-            const minFormatted = minDate.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-            const maxFormatted = maxDate.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
+            const minFormatted = minDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            const maxFormatted = maxDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
             dateRange = `From: ${minFormatted}<br>To: ${maxFormatted}`;
         }
     }
 
-    // Sort invoices by datePlaced in ascending order (oldest first)
-    const sortedInvoices = [...invoices].sort((a, b) => {
-        const dateA = a.datePlaced ? new Date(a.datePlaced).getTime() : 0;
-        const dateB = b.datePlaced ? new Date(b.datePlaced).getTime() : 0;
-        return dateA - dateB;
-    });
-
-    // Generate order rows
-    const orderRows = sortedInvoices.map((invoice, index) => {
-        const orderId = invoice.id;
-        const datePlaced = invoice.datePlaced ? new Date(invoice.datePlaced).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        }) : 'N/A';
-        const dueDate = invoice.datePaymentDue ? new Date(invoice.datePaymentDue).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        }) : 'N/A';
-        const orderTotal = invoice.grandTotal ? formatCurrency(invoice.grandTotal) : '0.00';
-        const payments = invoice.payments && Array.isArray(invoice.payments)
-            ? formatCurrency(invoice.payments.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0))
-            : '0.00';
-        const balance = invoice.outstandingAmount ? formatCurrency(invoice.outstandingAmount) : '0.00';
-        const rowClass = invoice.isPastDue ? 'style="background-color: #fee2e2;"' : '';
-
-        return `
-            <tr ${rowClass}>
-                <td>${index + 1}</td>
-                <td>${orderId}</td>
-                <td>${datePlaced}</td>
-                <td>${dueDate}</td>
-                <td class="right">$${orderTotal}</td>
-                <td class="right">$${payments}</td>
-                <td class="right">$${balance}</td>
-            </tr>`;
-    }).join('');
+    const statementTableHTML = renderStatementTable(invoices, { mode: 'pdf' });
 
     return `
         <!DOCTYPE html>
@@ -265,32 +217,7 @@ const generateStatementHTML = (customer, invoices) => {
                 </div>
             </div>
             <div class="print-table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Order #</th>
-                            <th>Date Placed</th>
-                            <th>Due Date</th>
-                            <th class="right">Order Total</th>
-                            <th class="right">Payments</th>
-                            <th class="right">Balance AUD</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${orderRows}
-                    </tbody>
-                    <tfoot>
-                        <tr class="summary-row">
-                            <td colspan="6" class="summary-label">GRAND TOTAL AUD</td>
-                            <td class="summary-value right">$${grandTotal}</td>
-                        </tr>
-                        <tr class="summary-row balance-due-row">
-                            <td colspan="6" class="summary-label balance-due-label">BALANCE DUE AUD</td>
-                            <td class="summary-value right balance-due-value">$${dueInvoiceBalance}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+                ${statementTableHTML}
             </div>
             <div style="margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: flex-start; gap: 40px;">
                 <div style="flex: 1; min-width: 220px;">
@@ -355,33 +282,8 @@ const generateStatementHTML = (customer, invoices) => {
  * @returns {string} Complete HTML email body
  */
 const generateEmailHTML = (customer, invoices) => {
-    // Helper function to format currency with commas and $ symbol
-    const formatCurrency = (amount) => {
-        if (amount === null || amount === undefined) return '$0.00';
-        const num = parseFloat(amount);
-        if (isNaN(num)) return '$0.00';
-        return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
-    // Helper function to format dates
-    const formatDate = (dateStr) => {
-        if (!dateStr) return 'N/A';
-        try {
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('en-AU', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric'
-            });
-        } catch (e) {
-            return 'N/A';
-        }
-    };
-
-    // Format customer name
     const customerName = customer.pdf_customer_name || customer.customer_username || 'Customer';
 
-    // Format statement date (no time) for email copy
     const statementDate = new Date().toLocaleDateString('en-AU', {
         day: 'numeric',
         month: 'short',
@@ -389,44 +291,7 @@ const generateEmailHTML = (customer, invoices) => {
         timeZone: 'Australia/Sydney'
     });
 
-    // Sort invoices by datePlaced in ascending order (oldest first)
-    const sortedInvoices = [...invoices].sort((a, b) => {
-        const dateA = a.datePlaced ? new Date(a.datePlaced).getTime() : 0;
-        const dateB = b.datePlaced ? new Date(b.datePlaced).getTime() : 0;
-        return dateA - dateB;
-    });
-
-    // Calculate totals
-    const grandTotal = invoices.reduce((sum, inv) => sum + parseFloat(inv.outstandingAmount || 0), 0);
-    const dueInvoiceBalance = sortedInvoices
-        .filter(invoice => invoice.isPastDue)
-        .reduce((sum, inv) => sum + parseFloat(inv.outstandingAmount || 0), 0);
-
-    // Generate invoice table rows with 7 columns
-    const tableRows = sortedInvoices.map((invoice, index) => {
-        const orderId = invoice.id;
-        const datePlaced = formatDate(invoice.datePlaced);
-        const dueDate = formatDate(invoice.datePaymentDue);
-        const orderTotal = formatCurrency(invoice.grandTotal);
-        const payments = invoice.payments && Array.isArray(invoice.payments)
-            ? formatCurrency(invoice.payments.reduce((sum, payment) => sum + parseFloat(payment.Amount || 0), 0))
-            : '$0.00';
-        const balance = formatCurrency(invoice.outstandingAmount);
-        const rowStyle = invoice.isPastDue
-            ? 'style="background-color: #fee2e2;"'
-            : `style="background-color: ${index % 2 === 0 ? '#fff' : '#f9fbfa'};"`;
-
-        return `
-            <tr ${rowStyle}>
-                <td style="padding:8px 6px;text-align:center;vertical-align:middle;font-size:13px;color:#444;">${index + 1}</td>
-                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:#333;font-weight:500;">${orderId}</td>
-                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:#666;">${datePlaced}</td>
-                <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:${invoice.isPastDue ? '#dc2626' : '#666'};">${dueDate}${invoice.isPastDue ? ' <span style="background:#dc2626;color:#fff;padding:1px 4px;border-radius:3px;font-size:10px;margin-left:4px;">Overdue</span>' : ''}</td>
-                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;">${orderTotal}</td>
-                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#666;">${payments}</td>
-                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;font-weight:600;">${balance}</td>
-            </tr>`;
-    }).join('');
+    const statementTableHTML = renderStatementTable(invoices, { mode: 'email' });
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -459,32 +324,7 @@ const generateEmailHTML = (customer, invoices) => {
           </tr>
           <tr>
             <td style="padding:0;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
-                <thead>
-                  <tr style="background:#f3f4f6;">
-                    <th style="padding:8px 6px;text-align:center;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">#</th>
-                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Order #</th>
-                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Date Placed</th>
-                    <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Due Date</th>
-                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Order Total</th>
-                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Payments</th>
-                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Balance AUD</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tableRows}
-                </tbody>
-                <tfoot>
-                  <tr style="background:#f9fafb;">
-                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#111;border-top:1px solid #e5e7eb;">GRAND TOTAL AUD</td>
-                    <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#111;border-top:1px solid #e5e7eb;">${formatCurrency(grandTotal)}</td>
-                  </tr>
-                  <tr style="background:#fef2f2;">
-                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#b91c1c;">BALANCE DUE AUD</td>
-                    <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#b91c1c;">${formatCurrency(dueInvoiceBalance)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+              ${statementTableHTML}
             </td>
           </tr>
           <tr>
