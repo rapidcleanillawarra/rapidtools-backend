@@ -1,3 +1,3 @@
-const { handler } = require('./statement_of_accounts/generate_invoices_statements');
+const { handler } = require('./generate_invoices_statements/generate_invoices_statements');
 
 module.exports = { handler };
