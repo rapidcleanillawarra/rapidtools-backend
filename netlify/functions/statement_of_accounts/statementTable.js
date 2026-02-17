@@ -55,7 +55,7 @@ function sortInvoicesByDatePlaced(invoices) {
  * Get normalized table data for the statement table (sorted invoices, row data, totals).
  * @param {Array} invoices - Raw invoice objects from API
  * @param {{ dateLocale?: string, includeCurrencySymbol?: boolean }} [localeOptions]
- * @returns {{ sortedInvoices: Array, rowData: Array<{ index: number, orderId: *, datePlaced: string, dueDate: string, orderTotal: string, payments: string, balance: string, isPastDue: boolean }>, grandTotal: string, dueInvoiceBalance: string }}
+ * @returns {{ sortedInvoices: Array, rowData: Array<{ index: number, orderId: *, datePlaced: string, dueDate: string, orderTotal: string, payments: string, accountCredit: string, rma: string, balance: string, isPastDue: boolean }>, grandTotal: string, dueInvoiceBalance: string }}
  */
 function getStatementTableData(invoices, localeOptions = {}) {
     const dateLocale = localeOptions.dateLocale || 'en-US';
@@ -72,6 +72,9 @@ function getStatementTableData(invoices, localeOptions = {}) {
         const paymentsSum = invoice.payments && Array.isArray(invoice.payments)
             ? invoice.payments.reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0)
             : 0;
+        const accountCreditSum = invoice.payments && Array.isArray(invoice.payments)
+            ? invoice.payments.reduce((sum, p) => sum + (String(p.PaymentType || '') === 'Account Credit' ? parseFloat(p.Amount || 0) : 0), 0)
+            : 0;
         return {
             index: index + 1,
             orderId: invoice.id,
@@ -79,6 +82,8 @@ function getStatementTableData(invoices, localeOptions = {}) {
             dueDate: formatDate(invoice.datePaymentDue, dateLocale),
             orderTotal: formatCurrency(invoice.grandTotal, { includeSymbol }),
             payments: formatCurrency(paymentsSum, { includeSymbol }),
+            accountCredit: formatCurrency(accountCreditSum, { includeSymbol }),
+            rma: '',
             balance: formatCurrency(invoice.outstandingAmount, { includeSymbol }),
             isPastDue: !!invoice.isPastDue
         };
@@ -120,6 +125,8 @@ function renderStatementTable(invoices, options = {}) {
             <th>Due Date</th>
             <th class="right">Order Total</th>
             <th class="right">Payments</th>
+            <th class="right">Account Credit</th>
+            <th class="right">RMA</th>
             <th class="right">Balance AUD</th>
         </tr>
     </thead>`;
@@ -135,6 +142,8 @@ function renderStatementTable(invoices, options = {}) {
                 <td>${row.dueDate}</td>
                 <td class="right">${currencyPrefix}${row.orderTotal}</td>
                 <td class="right">${currencyPrefix}${row.payments}</td>
+                <td class="right">${currencyPrefix}${row.accountCredit}</td>
+                <td class="right">${currencyPrefix}${row.rma}</td>
                 <td class="right">${currencyPrefix}${row.balance}</td>
             </tr>`;
         }).join('');
@@ -154,6 +163,8 @@ function renderStatementTable(invoices, options = {}) {
                 <td style="padding:8px 6px;vertical-align:middle;font-size:13px;color:${dueDateColor};">${dueDateCell}</td>
                 <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;">${row.orderTotal}</td>
                 <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#666;">${row.payments}</td>
+                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#666;">${row.accountCredit}</td>
+                <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#666;">${row.rma}</td>
                 <td style="padding:8px 6px;text-align:right;vertical-align:middle;font-size:13px;color:#333;font-weight:600;">${row.balance}</td>
             </tr>`;
         }).join('');
@@ -165,22 +176,22 @@ function renderStatementTable(invoices, options = {}) {
     if (mode === 'pdf') {
         tfoot = `<tfoot>
         <tr class="summary-row">
-            <td colspan="6" class="summary-label">GRAND TOTAL AUD</td>
+            <td colspan="8" class="summary-label">GRAND TOTAL AUD</td>
             <td class="summary-value right">${currencyPrefix}${grandTotal}</td>
         </tr>
         <tr class="summary-row balance-due-row">
-            <td colspan="6" class="summary-label balance-due-label">BALANCE DUE AUD</td>
+            <td colspan="8" class="summary-label balance-due-label">BALANCE DUE AUD</td>
             <td class="summary-value right balance-due-value">${currencyPrefix}${dueInvoiceBalance}</td>
         </tr>
     </tfoot>`;
     } else {
         tfoot = `<tfoot>
                   <tr style="background:#f9fafb;">
-                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#111;border-top:1px solid #e5e7eb;">GRAND TOTAL AUD</td>
+                    <td colspan="8" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#111;border-top:1px solid #e5e7eb;">GRAND TOTAL AUD</td>
                     <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#111;border-top:1px solid #e5e7eb;">${grandTotal}</td>
                   </tr>
                   <tr style="background:#fef2f2;">
-                    <td colspan="6" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#b91c1c;">BALANCE DUE AUD</td>
+                    <td colspan="8" style="padding:10px 6px;text-align:right;font-size:13px;font-weight:600;color:#b91c1c;">BALANCE DUE AUD</td>
                     <td style="padding:10px 6px;text-align:right;font-size:13px;font-weight:700;color:#b91c1c;">${dueInvoiceBalance}</td>
                   </tr>
                 </tfoot>`;
@@ -196,6 +207,8 @@ function renderStatementTable(invoices, options = {}) {
                     <th style="padding:8px 6px;text-align:left;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Due Date</th>
                     <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Order Total</th>
                     <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Payments</th>
+                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Account Credit</th>
+                    <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">RMA</th>
                     <th style="padding:8px 6px;text-align:right;font-weight:600;font-size:13px;color:#111;border-bottom:1px solid #e5e7eb;">Balance AUD</th>
                   </tr>
                 </thead>
