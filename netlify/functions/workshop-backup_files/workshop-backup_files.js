@@ -1,7 +1,7 @@
 const { supabase } = require('../utils/supabaseInit');
 
 // Table and storage bucket names
-const WORKSHOP_TABLE = 'workshops';
+const WORKSHOP_TABLE = 'workshop';
 const BUCKET_FILES = 'workshop-files';
 const BUCKET_PHOTOS = 'workshop-photos';
 
@@ -96,7 +96,7 @@ const handler = async (event) => {
                     success: false,
                     error: 'Workshop table error',
                     message: workshopError.message,
-                    hint: 'Ensure the "workshops" table exists in your Supabase schema.'
+                    hint: 'Ensure the "workshop" table exists in your Supabase schema.'
                 })
             };
         }
