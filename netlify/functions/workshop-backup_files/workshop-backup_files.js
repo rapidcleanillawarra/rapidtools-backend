@@ -39,6 +39,7 @@ const handler = async (event) => {
     }
 
     const action = body?.action;
+    const limit = Math.min(Math.max(1, parseInt(body?.limit, 10) || 2), 1000);
 
     try {
         if (!supabase) {
@@ -56,8 +57,9 @@ const handler = async (event) => {
         if (action === 'getCompletedAndScrapped') {
             const { data: rows, error } = await supabase
                 .from(WORKSHOP_TABLE)
-                .select('*')
-                .in('status', ['completed', 'to_be_scrapped']);
+                .select('status, photo_urls, file_urls, order_id')
+                .in('status', ['completed', 'to_be_scrapped'])
+                .limit(limit);
 
             if (error) {
                 return {
@@ -85,8 +87,8 @@ const handler = async (event) => {
         // Workshop table
         const { data: workshopRows, error: workshopError } = await supabase
             .from(WORKSHOP_TABLE)
-            .select('*')
-            .limit(100);
+            .select('status, photo_urls, file_urls, order_id')
+            .limit(limit);
 
         if (workshopError) {
             return {
