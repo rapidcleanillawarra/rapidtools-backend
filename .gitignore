@@ -123,3 +123,5 @@ playwright-report/
 # Package manager lock files
 package-lock.json
 yarn.lock
+.env
+.env

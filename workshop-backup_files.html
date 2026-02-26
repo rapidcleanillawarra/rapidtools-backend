@@ -110,6 +110,28 @@
             font-size: 0.85rem;
             margin-left: 8px;
         }
+        .photo-cell {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px 0;
+        }
+        .photo-cell img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        .photo-cell img:hover {
+            border-color: #0d9488;
+            box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2);
+        }
+        .photo-cell a {
+            display: block;
+            line-height: 0;
+        }
     </style>
 </head>
 <body>
@@ -179,7 +201,7 @@
                 const keys = Object.keys(rows[0]);
                 tableHead.innerHTML = '<tr>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
                 tableBody.innerHTML = rows.map(row =>
-                    '<tr>' + keys.map(k => '<td>' + escapeHtml(formatCell(row[k])) + '</td>').join('') + '</tr>'
+                    '<tr>' + keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') + '</tr>'
                 ).join('');
                 tableSection.style.display = 'block';
             } catch (err) {
@@ -195,6 +217,26 @@
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        function isDisplayablePhotoUrl(url) {
+            if (typeof url !== 'string' || !url.trim()) return false;
+            const u = url.trim();
+            return u.startsWith('https://') || u.startsWith('http://');
+        }
+
+        function renderCell(key, value) {
+            const photoKeys = ['display_photo_urls', 'photo_urls'];
+            if (photoKeys.includes(key) && Array.isArray(value) && value.length > 0) {
+                const urls = value.filter(isDisplayablePhotoUrl);
+                if (urls.length === 0) return escapeHtml(formatCell(value));
+                return '<div class="photo-cell">' + urls.map(url =>
+                    '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
+                    '<img src="' + escapeHtml(url) + '" alt="Workshop photo" loading="lazy">' +
+                    '</a>'
+                ).join('') + '</div>';
+            }
+            return escapeHtml(formatCell(value));
         }
 
         function formatCell(value) {
