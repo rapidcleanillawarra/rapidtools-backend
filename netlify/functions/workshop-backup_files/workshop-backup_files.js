@@ -29,6 +29,17 @@ const handler = async (event) => {
         };
     }
 
+    let body = {};
+    if (event.body) {
+        try {
+            body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+        } catch (_) {
+            body = {};
+        }
+    }
+
+    const action = body?.action;
+
     try {
         if (!supabase) {
             return {
@@ -38,6 +49,35 @@ const handler = async (event) => {
                     success: false,
                     error: 'Supabase not initialized',
                     message: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)'
+                })
+            };
+        }
+
+        if (action === 'getCompletedAndScrapped') {
+            const { data: rows, error } = await supabase
+                .from(WORKSHOP_TABLE)
+                .select('*')
+                .in('status', ['completed', 'to_be_scrapped']);
+
+            if (error) {
+                return {
+                    statusCode: 500,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Workshop query error',
+                        message: error.message
+                    })
+                };
+            }
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    action: 'getCompletedAndScrapped',
+                    rows: rows ?? [],
+                    count: (rows ?? []).length
                 })
             };
         }
