@@ -1,19 +1,23 @@
 const { supabase } = require('../utils/supabaseInit');
 const { getDisplayableMediaUrls } = require('../utils/workshopPhotoUrls');
+const { getDisplayableUrlsWithPresigned } = require('../utils/b2Presigned');
 
 // Table and storage bucket names
-// photo_urls and file_urls may contain Supabase or Backblaze B2 URLs; both can be displayed as-is (<img src={url}>).
+// photo_urls and file_urls may contain Supabase or Backblaze B2 URLs. B2 private bucket URLs
+// are converted to presigned URLs for display; others are used as-is (<img src={url}>).
 const WORKSHOP_TABLE = 'workshop';
 const BUCKET_FILES = 'workshop-files';
 const BUCKET_PHOTOS = 'workshop-photos';
 
-function withDisplayUrls(rows) {
+async function withDisplayUrls(rows) {
     if (!Array.isArray(rows)) return [];
-    return rows.map((row) => ({
-        ...row,
-        display_photo_urls: getDisplayableMediaUrls(row?.photo_urls ?? []),
-        display_file_urls: getDisplayableMediaUrls(row?.file_urls ?? [])
-    }));
+    return Promise.all(
+        rows.map(async (row) => ({
+            ...row,
+            display_photo_urls: await getDisplayableUrlsWithPresigned(row?.photo_urls ?? []),
+            display_file_urls: await getDisplayableUrlsWithPresigned(row?.file_urls ?? [])
+        }))
+    );
 }
 
 const handler = async (event) => {
@@ -89,9 +93,9 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     success: true,
                     action: 'getCompletedAndScrapped',
-                    rows: withDisplayUrls(rows ?? []),
+                    rows: await withDisplayUrls(rows ?? []),
                     count: (rows ?? []).length,
-                    note: 'photo_urls and file_urls may include Supabase or Backblaze B2 URLs; display_photo_urls and display_file_urls are filtered for display (<img src> or link href).'
+                    note: 'photo_urls and file_urls may include Supabase or Backblaze B2 URLs; display_photo_urls and display_file_urls are filtered and B2 URLs are presigned for private bucket access.'
                 })
             };
         }
@@ -158,11 +162,11 @@ const handler = async (event) => {
             headers,
             body: JSON.stringify({
                 success: true,
-                note: 'photo_urls and file_urls may include Supabase or Backblaze B2 URLs; display_photo_urls and display_file_urls are filtered for display (<img src> or link href).',
+                note: 'photo_urls and file_urls may include Supabase or Backblaze B2 URLs; display_photo_urls and display_file_urls are filtered and B2 URLs are presigned for private bucket access.',
                 workshop: {
                     table: WORKSHOP_TABLE,
                     count: workshopRows?.length ?? 0,
-                    rows: withDisplayUrls(workshopRows ?? [])
+                    rows: await withDisplayUrls(workshopRows ?? [])
                 },
                 storage: {
                     [BUCKET_FILES]: { files: filesList ?? [], count: (filesList ?? []).length },
