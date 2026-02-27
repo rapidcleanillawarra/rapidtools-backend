@@ -9,6 +9,33 @@ const WORKSHOP_TABLE = 'workshop';
 const BUCKET_FILES = 'workshop-files';
 const BUCKET_PHOTOS = 'workshop-photos';
 
+const SUPABASE_PUBLIC_PREFIX = '/storage/v1/object/public/';
+
+function isSupabaseStorageUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    return url.trim().includes(SUPABASE_PUBLIC_PREFIX);
+}
+
+function parseSupabaseStorageUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    const u = url.trim();
+    const i = u.indexOf(SUPABASE_PUBLIC_PREFIX);
+    if (i === -1) return null;
+    const after = u.slice(i + SUPABASE_PUBLIC_PREFIX.length);
+    const firstSlash = after.indexOf('/');
+    if (firstSlash === -1) return null;
+    const bucket = after.slice(0, firstSlash);
+    const path = after.slice(firstSlash + 1);
+    return bucket && path ? { bucket, path } : null;
+}
+
+async function downloadFileAsBase64(supabaseClient, bucket, path) {
+    const { data, error } = await supabaseClient.storage.from(bucket).download(path);
+    if (error || !data) return null;
+    const buf = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
+    return buf.toString('base64');
+}
+
 async function withDisplayUrls(rows) {
     if (!Array.isArray(rows)) return [];
     return Promise.all(
@@ -98,6 +125,106 @@ const handler = async (event) => {
                     note: 'photo_urls and file_urls may include Supabase or Backblaze B2 URLs; display_photo_urls and display_file_urls are filtered and B2 URLs are presigned for private bucket access.'
                 })
             };
+        }
+
+        if (action === 'backupToPowerAutomate') {
+            const orderId = body?.order_id;
+            if (orderId == null || String(orderId).trim() === '') {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Missing order_id',
+                        message: 'Provide order_id in the request body for backup.'
+                    })
+                };
+            }
+            const powerAutomateUrl = process.env.POWERAUTOMATE_BACKUP_URL;
+            if (!powerAutomateUrl || !powerAutomateUrl.trim()) {
+                return {
+                    statusCode: 500,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Power Automate not configured',
+                        message: 'Set POWERAUTOMATE_BACKUP_URL in the environment.'
+                    })
+                };
+            }
+            const { data: row, error: rowError } = await supabase
+                .from(WORKSHOP_TABLE)
+                .select('photo_urls, file_urls, order_id')
+                .eq('order_id', orderId)
+                .single();
+            if (rowError || !row) {
+                return {
+                    statusCode: rowError?.code === 'PGRST116' ? 404 : 500,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Workshop not found',
+                        message: rowError?.message || `No workshop row for order_id: ${orderId}`
+                    })
+                };
+            }
+            const allUrls = [
+                ...(Array.isArray(row.photo_urls) ? row.photo_urls : []),
+                ...(Array.isArray(row.file_urls) ? row.file_urls : [])
+            ].filter(isSupabaseStorageUrl);
+            const files = [];
+            for (const url of allUrls) {
+                const parsed = parseSupabaseStorageUrl(url);
+                if (!parsed) continue;
+                const content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
+                if (content == null) continue;
+                const filename = parsed.path.replace(/\//g, '_');
+                files.push({ filename, content });
+            }
+            const file_path = `order_${orderId}`;
+            const payload = { files, file_path };
+            let powerAutomateStatus;
+            let powerAutomateBody;
+            try {
+                const res = await fetch(powerAutomateUrl.trim(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                powerAutomateStatus = res.status;
+                const text = await res.text();
+                try {
+                    powerAutomateBody = JSON.parse(text);
+                } catch (_) {
+                    powerAutomateBody = text;
+                }
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        action: 'backupToPowerAutomate',
+                        order_id: orderId,
+                        files_sent: files.length,
+                        file_path,
+                        powerAutomateStatus,
+                        powerAutomateBody
+                    })
+                };
+            } catch (fetchErr) {
+                console.error('Power Automate fetch error:', fetchErr);
+                return {
+                    statusCode: 502,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Power Automate request failed',
+                        message: fetchErr?.message ?? String(fetchErr),
+                        order_id: orderId,
+                        files_prepared: files.length
+                    })
+                };
+            }
         }
 
         // Workshop table

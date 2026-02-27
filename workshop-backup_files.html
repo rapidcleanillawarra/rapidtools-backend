@@ -132,6 +132,17 @@
             display: block;
             line-height: 0;
         }
+        .backup-btn {
+            background: #0d9488;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .backup-btn:hover { background: #0f766e; }
+        .backup-btn:disabled { background: #94a3b8; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -166,6 +177,27 @@
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
 
+        tableBody.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.backup-btn');
+            if (!btn) return;
+            const orderId = btn.getAttribute('data-order-id');
+            if (!orderId) return;
+            btn.disabled = true;
+            try {
+                const res = await fetch('/.netlify/functions/workshop-backup_files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'backupToPowerAutomate', order_id: orderId })
+                });
+                const data = await res.json();
+                console.log('Backup response:', data);
+            } catch (err) {
+                console.log('Backup error:', err);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
         runBtn.addEventListener('click', async () => {
             runBtn.disabled = true;
             tableSection.style.display = 'none';
@@ -199,9 +231,10 @@
                 }
 
                 const keys = Object.keys(rows[0]);
-                tableHead.innerHTML = '<tr>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
+                tableHead.innerHTML = '<tr>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '<th>Backup</th></tr>';
                 tableBody.innerHTML = rows.map(row =>
-                    '<tr>' + keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') + '</tr>'
+                    '<tr>' + keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') +
+                    '<td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td></tr>'
                 ).join('');
                 tableSection.style.display = 'block';
             } catch (err) {
