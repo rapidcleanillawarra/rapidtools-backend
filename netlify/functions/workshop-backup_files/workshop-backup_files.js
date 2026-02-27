@@ -198,10 +198,11 @@ const handler = async (event) => {
             const rawPhotoUrls = parseUrls(row.photo_urls);
             const rawFileUrls = parseUrls(row.file_urls);
 
-            const files = [];
+            const photoFiles = [];
+            const otherFiles = [];
             const debug = { photos: 0, files: 0, b2: 0, supabase: 0, skipped: 0 };
 
-            async function processUrl(url, prefix) {
+            async function processUrl(url, targetArray) {
                 let content = null;
                 let filename = null;
 
@@ -209,20 +210,20 @@ const handler = async (event) => {
                     const parsed = parseSupabaseStorageUrl(url);
                     if (parsed) {
                         content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
-                        filename = prefix + parsed.path.replace(/\//g, '_');
+                        filename = parsed.path.split('/').pop();
                         debug.supabase++;
                     }
                 } else if (isB2Url(url)) {
                     const key = getKeyFromB2Url(url);
                     if (key) {
                         content = await downloadB2FileAsBase64(key);
-                        filename = prefix + key.replace(/\//g, '_');
+                        filename = key.split('/').pop();
                         debug.b2++;
                     }
                 }
 
                 if (content && filename) {
-                    files.push({ filename, content });
+                    targetArray.push({ filename, content });
                     return true;
                 }
                 debug.skipped++;
@@ -230,37 +231,40 @@ const handler = async (event) => {
             }
 
             for (const url of rawPhotoUrls) {
-                if (await processUrl(url, 'photo_')) debug.photos++;
+                if (await processUrl(url, photoFiles)) debug.photos++;
             }
             for (const url of rawFileUrls) {
-                if (await processUrl(url, 'file_')) debug.files++;
+                if (await processUrl(url, otherFiles)) debug.files++;
             }
 
-            const file_path = `order_${orderId}`;
             const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
 
-            try {
+            async function sendToPowerAutomate(files, file_path) {
+                if (!files || files.length === 0) return [];
                 const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ files, file_path })
                 });
-
-                const powerAutomateStatus = res.status;
+                if (res.status !== 200) return [];
                 const text = await res.text();
-                let powerAutomateBody;
-                try { powerAutomateBody = JSON.parse(text); } catch (_) { powerAutomateBody = text; }
+                try {
+                    const parsed = JSON.parse(text);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (_) {
+                    return [];
+                }
+            }
 
-                const backupLinks = Array.isArray(powerAutomateBody) ? powerAutomateBody : [];
+            try {
+                const photoBackupLinks = await sendToPowerAutomate(photoFiles, `/Public/Workshop/${orderId}/photos/`);
+                const fileBackupLinks = await sendToPowerAutomate(otherFiles, `/Public/Workshop/${orderId}/files/`);
 
-                if (powerAutomateStatus === 200 && row?.id) {
+                if (row?.id) {
                     const categorizedBackups = {
-                        photos: backupLinks.filter(l => l.toLowerCase().includes('photo_')),
-                        files: backupLinks.filter(l => l.toLowerCase().includes('file_'))
+                        photos: photoBackupLinks,
+                        files: fileBackupLinks
                     };
-                    if (backupLinks.length > 0 && categorizedBackups.photos.length === 0 && categorizedBackups.files.length === 0) {
-                        categorizedBackups.files = backupLinks;
-                    }
                     await supabase.from(WORKSHOP_TABLE).update({ backup_files: categorizedBackups }).eq('id', row.id);
                 }
 
@@ -271,8 +275,8 @@ const handler = async (event) => {
                         success: true,
                         order_id: orderId,
                         debug,
-                        powerAutomateStatus,
-                        powerAutomateBody
+                        photo_count: photoBackupLinks.length,
+                        file_count: fileBackupLinks.length
                     })
                 };
             } catch (fetchErr) {
