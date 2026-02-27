@@ -172,6 +172,102 @@ const handler = async (event) => {
             };
         }
 
+        if (action === 'backupUrl') {
+            const url = body?.url;
+            const orderId = body?.order_id;
+            const type = body?.type; // 'photo' or 'file'
+
+            if (!url || !orderId) {
+                return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing url or order_id' }) };
+            }
+
+            console.log(`[backupUrl] Starting for order ${orderId}, type ${type}, url ${url}`);
+            const startTime = Date.now();
+
+            let content = null;
+            let filename = null;
+
+            if (isSupabaseStorageUrl(url)) {
+                const parsed = parseSupabaseStorageUrl(url);
+                if (parsed) {
+                    console.log(`[backupUrl] Downloading from Supabase: ${parsed.bucket}/${parsed.path}`);
+                    content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
+                    filename = parsed.path.split('/').pop();
+                }
+            } else if (isB2Url(url)) {
+                const key = getKeyFromB2Url(url);
+                if (key) {
+                    console.log(`[backupUrl] Downloading from B2: ${key}`);
+                    content = await downloadB2FileAsBase64(key);
+                    filename = key.split('/').pop();
+                }
+            }
+
+            const downloadTime = Date.now() - startTime;
+            console.log(`[backupUrl] Download completed in ${downloadTime}ms`);
+
+            if (!content || !filename) {
+                console.error(`[backupUrl] Content or filename missing for ${url}`);
+                return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'File not found or inaccessible', url }) };
+            }
+
+            const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
+
+            try {
+                const folder = type === 'photo' ? 'photos' : 'files';
+                const file_path = `/Public/Workshop/${orderId}/${folder}/`;
+                console.log(`[backupUrl] Sending to Power Automate: ${file_path}${filename} (${content.length} base64 chars)`);
+                const uploadStart = Date.now();
+                const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: [{ filename, content }], file_path })
+                });
+
+                const uploadTime = Date.now() - uploadStart;
+                console.log(`[backupUrl] Power Automate responded in ${uploadTime}ms with status ${res.status}`);
+
+                if (res.status !== 200) {
+                    return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Power Automate trigger failed', status: res.status }) };
+                }
+
+                const text = await res.text();
+                let backupUrl = null;
+                try {
+                    const parsed = JSON.parse(text);
+                    backupUrl = Array.isArray(parsed) ? parsed[0] : null;
+                } catch (_) { }
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({ success: true, backup_url: backupUrl, original_url: url })
+                };
+            } catch (err) {
+                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Power Automate request failed', message: err.message }) };
+            }
+        }
+
+        if (action === 'saveBackupLinks') {
+            const orderId = body?.order_id;
+            const categorizedBackups = body?.categorizedBackups;
+
+            if (!orderId || !categorizedBackups) {
+                return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing order_id or categorizedBackups' }) };
+            }
+
+            const { error: updateError } = await supabase
+                .from(WORKSHOP_TABLE)
+                .update({ backup_files: categorizedBackups })
+                .eq('order_id', orderId);
+
+            if (updateError) {
+                return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to update database', message: updateError.message }) };
+            }
+
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+        }
+
         if (action === 'backupToPowerAutomate') {
             const orderId = body?.order_id;
             if (orderId == null || String(orderId).trim() === '') {

@@ -247,22 +247,133 @@
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
 
+        let currentRows = [];
+
+        function setRowStatus(orderId, status, color = '#64748b') {
+            const btn = document.querySelector(`.backup-btn[data-order-id="${orderId}"]`);
+            if (!btn) return;
+            let statusEl = btn.parentNode.querySelector('.row-status');
+            if (!statusEl) {
+                statusEl = document.createElement('div');
+                statusEl.className = 'row-status';
+                statusEl.style.fontSize = '0.75rem';
+                statusEl.style.marginTop = '4px';
+                btn.parentNode.appendChild(statusEl);
+            }
+            statusEl.textContent = status;
+            statusEl.style.color = color;
+        }
+
+        async function backupUrl(url, orderId, type) {
+            const res = await fetch('/.netlify/functions/workshop-backup_files', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'backupUrl', url, order_id: orderId, type })
+            });
+
+            if (res.status !== 200) {
+                const text = await res.text();
+                // If the response is not JSON, it might be a platform error like "TimeoutError"
+                let errorMessage = 'Backup failed';
+                try {
+                    const data = JSON.parse(text);
+                    errorMessage = data.error || data.message || errorMessage;
+                } catch (_) {
+                    errorMessage = text || `HTTP ${res.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Backup failed');
+            return data.backup_url;
+        }
+
         tableBody.addEventListener('click', async (e) => {
             const btn = e.target.closest('.backup-btn');
             if (!btn) return;
             const orderId = btn.getAttribute('data-order-id');
             if (!orderId) return;
+
+            const row = currentRows.find(r => String(r.order_id) === String(orderId));
+            if (!row) return;
+
             btn.disabled = true;
+            setRowStatus(orderId, 'Starting backup...');
+
             try {
-                const res = await fetch('/.netlify/functions/workshop-backup_files', {
+                // Simplified URL parsing logic similar to backend
+                const parseField = (val) => {
+                    if (!val) return [];
+                    if (Array.isArray(val)) return val.flat().filter(Boolean);
+                    if (typeof val === 'string') {
+                        try {
+                            const p = JSON.parse(val);
+                            if (Array.isArray(p)) return p.flat().filter(Boolean);
+                        } catch (_) { }
+                        return [val];
+                    }
+                    return [];
+                };
+
+                const photoUrls = parseField(row.photo_urls);
+                const fileUrls = parseField(row.file_urls);
+                const total = photoUrls.length + fileUrls.length;
+
+                if (total === 0) {
+                    setRowStatus(orderId, 'No files to backup', '#b91c1c');
+                    btn.disabled = false;
+                    return;
+                }
+
+                const photos = [];
+                const files = [];
+                let count = 0;
+
+                for (const url of photoUrls) {
+                    count++;
+                    setRowStatus(orderId, `Backing up photo ${count}/${total}...`);
+                    const bUrl = await backupUrl(url, orderId, 'photo');
+                    if (bUrl) photos.push(bUrl);
+                }
+
+                for (const url of fileUrls) {
+                    count++;
+                    setRowStatus(orderId, `Backing up file ${count}/${total}...`);
+                    const bUrl = await backupUrl(url, orderId, 'file');
+                    if (bUrl) files.push(bUrl);
+                }
+
+                setRowStatus(orderId, 'Saving links...');
+                const saveRes = await fetch('/.netlify/functions/workshop-backup_files', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'backupToPowerAutomate', order_id: orderId })
+                    body: JSON.stringify({
+                        action: 'saveBackupLinks',
+                        order_id: orderId,
+                        categorizedBackups: { photos, files }
+                    })
                 });
-                const data = await res.json();
-                console.log('Backup response:', data);
+                const saveData = await saveRes.json();
+                if (!saveData.success) throw new Error(saveData.error || 'Failed to save results');
+
+                setRowStatus(orderId, 'Backup Complete!', '#166534');
+
+                // Update row in currentRows and refresh UI
+                row.backup_files = { photos, files };
+                const rowIdx = Array.from(tableBody.rows).findIndex(tr => tr.querySelector('.backup-btn')?.getAttribute('data-order-id') === String(orderId));
+                if (rowIdx !== -1) {
+                    const tr = tableBody.rows[rowIdx];
+                    const keys = Object.keys(row).filter(k => k !== 'display_photo_urls');
+                    const backupFilesIdx = keys.indexOf('backup_files') + 1; // +1 because of "Backup" button column
+                    if (backupFilesIdx > 0 && tr.cells[backupFilesIdx]) {
+                        tr.cells[backupFilesIdx].innerHTML = renderCell('backup_files', row.backup_files);
+                    }
+                }
+
             } catch (err) {
-                console.log('Backup error:', err);
+                console.error('Backup error:', err);
+                setRowStatus(orderId, 'Error: ' + err.message, '#b91c1c');
             } finally {
                 btn.disabled = false;
             }
@@ -292,6 +403,7 @@
                 }
 
                 const rows = data.rows || [];
+                currentRows = rows;
                 messageEl.innerHTML = 'Loaded <span class="count-badge">' + (data.count || rows.length) + ' rows</span>';
                 messageEl.className = 'message success';
 
