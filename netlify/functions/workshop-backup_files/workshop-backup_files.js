@@ -86,8 +86,8 @@ async function withDisplayUrls(rows) {
     return Promise.all(
         rows.map(async (row) => ({
             ...row,
-            display_photo_urls: await getDisplayableUrlsWithPresigned(row?.photo_urls ?? []),
-            display_file_urls: await getDisplayableUrlsWithPresigned(row?.file_urls ?? [])
+            display_photo_urls: await getDisplayableUrlsWithPresigned(parseUrls(row?.photo_urls)),
+            display_file_urls: await getDisplayableUrlsWithPresigned(parseUrls(row?.file_urls))
         }))
     );
 }
