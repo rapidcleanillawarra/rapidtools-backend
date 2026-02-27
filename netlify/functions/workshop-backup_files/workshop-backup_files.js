@@ -143,7 +143,7 @@ const handler = async (event) => {
             }
             const { data: row, error: rowError } = await supabase
                 .from(WORKSHOP_TABLE)
-                .select('photo_urls, file_urls, order_id')
+                .select('id, photo_urls, file_urls, order_id')
                 .eq('order_id', orderId)
                 .single();
             if (rowError || !row) {
@@ -186,6 +186,15 @@ const handler = async (event) => {
                     powerAutomateBody = JSON.parse(text);
                 } catch (_) {
                     powerAutomateBody = text;
+                }
+                const backupLinks = Array.isArray(powerAutomateBody)
+                    ? powerAutomateBody
+                    : (typeof powerAutomateBody === 'string' ? (() => { try { const p = JSON.parse(powerAutomateBody); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+                if (powerAutomateStatus === 200 && row?.id) {
+                    await supabase
+                        .from(WORKSHOP_TABLE)
+                        .update({ backup_files: backupLinks })
+                        .eq('id', row.id);
                 }
                 return {
                     statusCode: 200,
