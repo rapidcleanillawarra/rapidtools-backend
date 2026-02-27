@@ -364,10 +364,10 @@
                 const rowIdx = Array.from(tableBody.rows).findIndex(tr => tr.querySelector('.backup-btn')?.getAttribute('data-order-id') === String(orderId));
                 if (rowIdx !== -1) {
                     const tr = tableBody.rows[rowIdx];
-                    const keys = Object.keys(row).filter(k => k !== 'display_photo_urls');
+                    const keys = Object.keys(row).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
                     const backupFilesIdx = keys.indexOf('backup_files') + 1; // +1 because of "Backup" button column
                     if (backupFilesIdx > 0 && tr.cells[backupFilesIdx]) {
-                        tr.cells[backupFilesIdx].innerHTML = renderCell('backup_files', row.backup_files);
+                        tr.cells[backupFilesIdx].innerHTML = renderCell('backup_files', row.backup_files, row);
                     }
                 }
 
@@ -412,11 +412,11 @@
                     return;
                 }
 
-                const keys = Object.keys(rows[0]).filter(k => k !== 'display_photo_urls');
+                const keys = Object.keys(rows[0]).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
                 tableHead.innerHTML = '<tr><th>Backup</th>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
                 tableBody.innerHTML = rows.map(row =>
                     '<tr><td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td>' +
-                    keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') + '</tr>'
+                    keys.map(k => '<td>' + renderCell(k, row[k], row) + '</td>').join('') + '</tr>'
                 ).join('');
                 tableSection.style.display = 'block';
             } catch (err) {
@@ -440,7 +440,7 @@
             return u.startsWith('https://') || u.startsWith('http://');
         }
 
-        function renderCell(key, value) {
+        function renderCell(key, value, row) {
             if (key === 'backup_files' && value) {
                 // Handle new object structure
                 if (typeof value === 'object' && !Array.isArray(value)) {
@@ -451,9 +451,9 @@
                     if (!hasPhotos && !hasFiles) return '<span style="color:#94a3b8; font-style:italic;">No backup files</span>';
 
                     if (hasPhotos) {
-                        html += '<strong>Photos:</strong><div style="font-size:0.8rem; word-break:break-all;">' + value.photos.map(url =>
-                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(url) + '</a>'
-                        ).join('<br>') + '</div>';
+                        html += '<strong>Photos:</strong><div class="photo-cell">' + value.photos.map(url =>
+                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(url) + '" alt="Backup photo" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>'
+                        ).join('') + '</div>';
                     }
                     if (hasFiles) {
                         html += '<strong>Files:</strong><div style="font-size:0.8rem; word-break:break-all;">' + value.files.map((url, i) =>
@@ -465,21 +465,41 @@
                 }
                 // Handle old array structure
                 if (Array.isArray(value)) {
-                    return '<div style="font-size:0.8rem; word-break:break-all;">' + value.map((url, i) =>
-                        '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(url) + '</a>'
-                    ).join('<br>') + '</div>';
+                    return '<div class="photo-cell">' + value.map((url, i) =>
+                        '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(url) + '" alt="Backup file ' + (i + 1) + '" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>'
+                    ).join('') + '</div>';
                 }
             }
 
             const photoKeys = ['photo_urls'];
-            if (photoKeys.includes(key) && Array.isArray(value) && value.length > 0) {
-                const urls = value.filter(isDisplayablePhotoUrl);
+            if (photoKeys.includes(key)) {
+                // Use display_photo_urls if available for better compatibility (presigned/public)
+                const urls = (row && row.display_photo_urls && row.display_photo_urls.length > 0)
+                    ? row.display_photo_urls.filter(isDisplayablePhotoUrl)
+                    : parseField(value).filter(isDisplayablePhotoUrl);
+
                 if (urls.length === 0) return escapeHtml(formatCell(value));
-                return '<div style="font-size:0.8rem; word-break:break-all;">' + urls.map(url =>
-                    '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(url) + '</a>'
-                ).join('<br>') + '</div>';
+
+                return '<div class="photo-cell">' + urls.map(url =>
+                    '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(url) + '" alt="Photo" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>'
+                ).join('') + '</div>';
             }
             return escapeHtml(formatCell(value));
+        }
+
+        // Helper to parse potential JSON string fields
+        function parseField(val) {
+            if (!val) return [];
+            if (Array.isArray(val)) return val.flat().filter(Boolean);
+            if (typeof val === 'string') {
+                try {
+                    const p = JSON.parse(val);
+                    if (Array.isArray(p)) return p.flat().filter(Boolean);
+                    if (typeof p === 'string') return [p];
+                } catch (_) { }
+                return [val];
+            }
+            return [];
         }
 
         function formatCell(value) {
