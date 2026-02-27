@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Workshop Backup – Completed & To Be Scrapped</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
@@ -14,24 +20,42 @@
             min-height: 100vh;
             padding: 20px;
         }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
             overflow: hidden;
         }
+
         .header {
             background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
             color: white;
             padding: 24px;
             text-align: center;
         }
-        .header h1 { font-size: 1.75rem; margin-bottom: 8px; }
-        .header p { opacity: 0.9; font-size: 0.95rem; }
-        .content { padding: 30px; }
-        .action-section { text-align: center; margin-bottom: 24px; }
+
+        .header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .action-section {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
         .run-button {
             background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
             color: white;
@@ -44,15 +68,18 @@
             transition: all 0.2s ease;
             box-shadow: 0 4px 15px rgba(13, 148, 136, 0.3);
         }
+
         .run-button:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4);
         }
+
         .run-button:disabled {
             background: #9ca3af;
             cursor: not-allowed;
             transform: none;
         }
+
         .limit-row {
             display: flex;
             align-items: center;
@@ -61,7 +88,12 @@
             margin-bottom: 16px;
             flex-wrap: wrap;
         }
-        .limit-row label { font-weight: 500; color: #334155; }
+
+        .limit-row label {
+            font-weight: 500;
+            color: #334155;
+        }
+
         .limit-row input[type="number"] {
             width: 80px;
             padding: 8px 12px;
@@ -69,28 +101,37 @@
             border-radius: 6px;
             font-size: 1rem;
         }
+
         .table-wrap {
             overflow-x: auto;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             margin-top: 16px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
         }
-        th, td {
+
+        th,
+        td {
             padding: 12px 14px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
         }
+
         th {
             background: #f1f5f9;
             font-weight: 600;
             color: #334155;
         }
-        tr:hover { background: #f8fafc; }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
         .message {
             padding: 16px;
             border-radius: 8px;
@@ -98,9 +139,24 @@
             font-family: ui-monospace, monospace;
             font-size: 0.9rem;
         }
-        .message.loading { background: #f1f5f9; color: #64748b; }
-        .message.error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
-        .message.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+        .message.loading {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .message.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+        }
+
+        .message.success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
         .count-badge {
             display: inline-block;
             background: #0d9488;
@@ -110,12 +166,14 @@
             font-size: 0.85rem;
             margin-left: 8px;
         }
+
         .photo-cell {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             padding: 8px 0;
         }
+
         .photo-cell img {
             width: 80px;
             height: 80px;
@@ -124,14 +182,17 @@
             border: 1px solid #e2e8f0;
             background: #f8fafc;
         }
+
         .photo-cell img:hover {
             border-color: #0d9488;
             box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2);
         }
+
         .photo-cell a {
             display: block;
             line-height: 0;
         }
+
         .backup-btn {
             background: #0d9488;
             color: white;
@@ -141,10 +202,18 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .backup-btn:hover { background: #0f766e; }
-        .backup-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        .backup-btn:hover {
+            background: #0f766e;
+        }
+
+        .backup-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -155,7 +224,8 @@
             <div class="action-section">
                 <div class="limit-row">
                     <label for="limitInput">Max rows:</label>
-                    <input type="number" id="limitInput" min="1" max="1000" value="2" title="Number of rows to pull (1–1000)">
+                    <input type="number" id="limitInput" min="1" max="1000" value="2"
+                        title="Number of rows to pull (1–1000)">
                 </div>
                 <button class="run-button" id="runBtn" type="button">Load completed & to be scrapped</button>
             </div>
@@ -259,6 +329,38 @@
         }
 
         function renderCell(key, value) {
+            if (key === 'backup_files' && value) {
+                // Handle new object structure
+                if (typeof value === 'object' && !Array.isArray(value)) {
+                    let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+                    const hasPhotos = Array.isArray(value.photos) && value.photos.length > 0;
+                    const hasFiles = Array.isArray(value.files) && value.files.length > 0;
+
+                    if (!hasPhotos && !hasFiles) return '<span style="color:#94a3b8; font-style:italic;">No backup files</span>';
+
+                    if (hasPhotos) {
+                        html += '<strong>Photos:</strong><div class="photo-cell">' + value.photos.map(url =>
+                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
+                            '<img src="' + escapeHtml(url) + '" alt="Backup photo" style="width:50px; height:50px;">' +
+                            '</a>'
+                        ).join('') + '</div>';
+                    }
+                    if (hasFiles) {
+                        html += '<strong>Files:</strong><div style="font-size:0.8rem;">' + value.files.map((url, i) =>
+                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">File ' + (i + 1) + '</a>'
+                        ).join('<br>') + '</div>';
+                    }
+                    html += '</div>';
+                    return html;
+                }
+                // Handle old array structure
+                if (Array.isArray(value)) {
+                    return '<div style="font-size:0.8rem;">' + value.map((url, i) =>
+                        '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">Link ' + (i + 1) + '</a>'
+                    ).join('<br>') + '</div>';
+                }
+            }
+
             const photoKeys = ['photo_urls'];
             if (photoKeys.includes(key) && Array.isArray(value) && value.length > 0) {
                 const urls = value.filter(isDisplayablePhotoUrl);
@@ -279,10 +381,11 @@
                 try {
                     const d = new Date(value);
                     if (!isNaN(d.getTime())) return d.toLocaleString();
-                } catch (_) {}
+                } catch (_) { }
             }
             return String(value);
         }
     </script>
 </body>
+
 </html>

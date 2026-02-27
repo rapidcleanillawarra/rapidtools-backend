@@ -1,15 +1,12 @@
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { supabase } = require('../utils/supabaseInit');
 const { getDisplayableMediaUrls } = require('../utils/workshopPhotoUrls');
-const { getDisplayableUrlsWithPresigned } = require('../utils/b2Presigned');
+const { getDisplayableUrlsWithPresigned, isB2Url, getKeyFromB2Url, getB2Client } = require('../utils/b2Presigned');
 
 // Table and storage bucket names
-// photo_urls and file_urls may contain Supabase or Backblaze B2 URLs. B2 private bucket URLs
-// are converted to presigned URLs for display; others are used as-is (<img src={url}>).
 const WORKSHOP_TABLE = 'workshop';
 const BUCKET_FILES = 'workshop-files';
 const BUCKET_PHOTOS = 'workshop-photos';
-const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
-
 const SUPABASE_PUBLIC_PREFIX = '/storage/v1/object/public/';
 
 function isSupabaseStorageUrl(url) {
@@ -30,11 +27,58 @@ function parseSupabaseStorageUrl(url) {
     return bucket && path ? { bucket, path } : null;
 }
 
+/**
+ * Robustly parses URLs from a value that might be a string, a JSON string, 
+ * or a nested JSON string (common in file_urls).
+ */
+function parseUrls(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.flat().filter(Boolean);
+    if (typeof value !== 'string') return [];
+
+    let current = value.trim();
+    // Repeatedly parse if it looks like a JSON string
+    while (typeof current === 'string' && (current.startsWith('[') || current.startsWith('"['))) {
+        try {
+            const parsed = JSON.parse(current);
+            if (Array.isArray(parsed)) {
+                return parsed.flat().map(v => parseUrls(v)).flat().filter(Boolean);
+            }
+            current = parsed;
+        } catch (e) {
+            break;
+        }
+    }
+    return typeof current === 'string' ? [current] : [];
+}
+
 async function downloadFileAsBase64(supabaseClient, bucket, path) {
     const { data, error } = await supabaseClient.storage.from(bucket).download(path);
     if (error || !data) return null;
     const buf = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
     return buf.toString('base64');
+}
+
+async function downloadB2FileAsBase64(key) {
+    const client = getB2Client();
+    const bucket = process.env.B2_BUCKET_NAME;
+    if (!client || !bucket) return null;
+    try {
+        const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+        const response = await client.send(command);
+        const stream = response.Body;
+        if (!stream) return null;
+
+        // Convert stream to buffer
+        const chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        return Buffer.concat(chunks).toString('base64');
+    } catch (err) {
+        console.error('B2 download error:', key, err);
+        return null;
+    }
 }
 
 async function withDisplayUrls(rows) {
@@ -100,7 +144,7 @@ const handler = async (event) => {
         if (action === 'getCompletedAndScrapped') {
             const { data: rows, error } = await supabase
                 .from(WORKSHOP_TABLE)
-                .select('status, photo_urls, file_urls, order_id')
+                .select('status, photo_urls, file_urls, order_id, backup_files')
                 .in('status', ['completed', 'to_be_scrapped'])
                 .limit(limit);
 
@@ -134,93 +178,108 @@ const handler = async (event) => {
                 return {
                     statusCode: 400,
                     headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Missing order_id',
-                        message: 'Provide order_id in the request body for backup.'
-                    })
+                    body: JSON.stringify({ success: false, error: 'Missing order_id' })
                 };
             }
             const { data: row, error: rowError } = await supabase
                 .from(WORKSHOP_TABLE)
-                .select('id, photo_urls, file_urls, order_id')
+                .select('id, photo_urls, file_urls, order_id, backup_files')
                 .eq('order_id', orderId)
                 .single();
+
             if (rowError || !row) {
                 return {
                     statusCode: rowError?.code === 'PGRST116' ? 404 : 500,
                     headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Workshop not found',
-                        message: rowError?.message || `No workshop row for order_id: ${orderId}`
-                    })
+                    body: JSON.stringify({ success: false, error: 'Workshop not found', message: rowError?.message })
                 };
             }
-            const allUrls = [
-                ...(Array.isArray(row.photo_urls) ? row.photo_urls : []),
-                ...(Array.isArray(row.file_urls) ? row.file_urls : [])
-            ].filter(isSupabaseStorageUrl);
+
+            const rawPhotoUrls = parseUrls(row.photo_urls);
+            const rawFileUrls = parseUrls(row.file_urls);
+
             const files = [];
-            for (const url of allUrls) {
-                const parsed = parseSupabaseStorageUrl(url);
-                if (!parsed) continue;
-                const content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
-                if (content == null) continue;
-                const filename = parsed.path.replace(/\//g, '_');
-                files.push({ filename, content });
+            const debug = { photos: 0, files: 0, b2: 0, supabase: 0, skipped: 0 };
+
+            async function processUrl(url, prefix) {
+                let content = null;
+                let filename = null;
+
+                if (isSupabaseStorageUrl(url)) {
+                    const parsed = parseSupabaseStorageUrl(url);
+                    if (parsed) {
+                        content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
+                        filename = prefix + parsed.path.replace(/\//g, '_');
+                        debug.supabase++;
+                    }
+                } else if (isB2Url(url)) {
+                    const key = getKeyFromB2Url(url);
+                    if (key) {
+                        content = await downloadB2FileAsBase64(key);
+                        filename = prefix + key.replace(/\//g, '_');
+                        debug.b2++;
+                    }
+                }
+
+                if (content && filename) {
+                    files.push({ filename, content });
+                    return true;
+                }
+                debug.skipped++;
+                return false;
             }
+
+            for (const url of rawPhotoUrls) {
+                if (await processUrl(url, 'photo_')) debug.photos++;
+            }
+            for (const url of rawFileUrls) {
+                if (await processUrl(url, 'file_')) debug.files++;
+            }
+
             const file_path = `order_${orderId}`;
-            const payload = { files, file_path };
-            let powerAutomateStatus;
-            let powerAutomateBody;
+            const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
+
             try {
                 const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ files, file_path })
                 });
-                powerAutomateStatus = res.status;
+
+                const powerAutomateStatus = res.status;
                 const text = await res.text();
-                try {
-                    powerAutomateBody = JSON.parse(text);
-                } catch (_) {
-                    powerAutomateBody = text;
-                }
-                const backupLinks = Array.isArray(powerAutomateBody)
-                    ? powerAutomateBody
-                    : (typeof powerAutomateBody === 'string' ? (() => { try { const p = JSON.parse(powerAutomateBody); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+                let powerAutomateBody;
+                try { powerAutomateBody = JSON.parse(text); } catch (_) { powerAutomateBody = text; }
+
+                const backupLinks = Array.isArray(powerAutomateBody) ? powerAutomateBody : [];
+
                 if (powerAutomateStatus === 200 && row?.id) {
-                    await supabase
-                        .from(WORKSHOP_TABLE)
-                        .update({ backup_files: backupLinks })
-                        .eq('id', row.id);
+                    const categorizedBackups = {
+                        photos: backupLinks.filter(l => l.toLowerCase().includes('photo_')),
+                        files: backupLinks.filter(l => l.toLowerCase().includes('file_'))
+                    };
+                    if (backupLinks.length > 0 && categorizedBackups.photos.length === 0 && categorizedBackups.files.length === 0) {
+                        categorizedBackups.files = backupLinks;
+                    }
+                    await supabase.from(WORKSHOP_TABLE).update({ backup_files: categorizedBackups }).eq('id', row.id);
                 }
+
                 return {
                     statusCode: 200,
                     headers,
                     body: JSON.stringify({
                         success: true,
-                        action: 'backupToPowerAutomate',
                         order_id: orderId,
-                        files_sent: files.length,
-                        file_path,
+                        debug,
                         powerAutomateStatus,
                         powerAutomateBody
                     })
                 };
             } catch (fetchErr) {
-                console.error('Power Automate fetch error:', fetchErr);
                 return {
                     statusCode: 502,
                     headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Power Automate request failed',
-                        message: fetchErr?.message ?? String(fetchErr),
-                        order_id: orderId,
-                        files_prepared: files.length
-                    })
+                    body: JSON.stringify({ success: false, error: 'Power Automate failed', debug })
                 };
             }
         }
@@ -228,7 +287,7 @@ const handler = async (event) => {
         // Workshop table
         const { data: workshopRows, error: workshopError } = await supabase
             .from(WORKSHOP_TABLE)
-            .select('status, photo_urls, file_urls, order_id')
+            .select('status, photo_urls, file_urls, order_id, backup_files')
             .limit(limit);
 
         if (workshopError) {
