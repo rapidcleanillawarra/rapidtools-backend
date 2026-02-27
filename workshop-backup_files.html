@@ -230,11 +230,11 @@
                     return;
                 }
 
-                const keys = Object.keys(rows[0]);
-                tableHead.innerHTML = '<tr>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '<th>Backup</th></tr>';
+                const keys = Object.keys(rows[0]).filter(k => k !== 'display_photo_urls');
+                tableHead.innerHTML = '<tr><th>Backup</th>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
                 tableBody.innerHTML = rows.map(row =>
-                    '<tr>' + keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') +
-                    '<td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td></tr>'
+                    '<tr><td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td>' +
+                    keys.map(k => '<td>' + renderCell(k, row[k]) + '</td>').join('') + '</tr>'
                 ).join('');
                 tableSection.style.display = 'block';
             } catch (err) {
@@ -259,7 +259,7 @@
         }
 
         function renderCell(key, value) {
-            const photoKeys = ['display_photo_urls', 'photo_urls'];
+            const photoKeys = ['photo_urls'];
             if (photoKeys.includes(key) && Array.isArray(value) && value.length > 0) {
                 const urls = value.filter(isDisplayablePhotoUrl);
                 if (urls.length === 0) return escapeHtml(formatCell(value));

@@ -8,6 +8,7 @@ const { getDisplayableUrlsWithPresigned } = require('../utils/b2Presigned');
 const WORKSHOP_TABLE = 'workshop';
 const BUCKET_FILES = 'workshop-files';
 const BUCKET_PHOTOS = 'workshop-photos';
+const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
 
 const SUPABASE_PUBLIC_PREFIX = '/storage/v1/object/public/';
 
@@ -140,18 +141,6 @@ const handler = async (event) => {
                     })
                 };
             }
-            const powerAutomateUrl = process.env.POWERAUTOMATE_BACKUP_URL;
-            if (!powerAutomateUrl || !powerAutomateUrl.trim()) {
-                return {
-                    statusCode: 500,
-                    headers,
-                    body: JSON.stringify({
-                        success: false,
-                        error: 'Power Automate not configured',
-                        message: 'Set POWERAUTOMATE_BACKUP_URL in the environment.'
-                    })
-                };
-            }
             const { data: row, error: rowError } = await supabase
                 .from(WORKSHOP_TABLE)
                 .select('photo_urls, file_urls, order_id')
@@ -186,7 +175,7 @@ const handler = async (event) => {
             let powerAutomateStatus;
             let powerAutomateBody;
             try {
-                const res = await fetch(powerAutomateUrl.trim(), {
+                const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
