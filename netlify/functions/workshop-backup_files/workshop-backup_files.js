@@ -1,4 +1,4 @@
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { supabase } = require('../utils/supabaseInit');
 const { getDisplayableMediaUrls } = require('../utils/workshopPhotoUrls');
 const { getDisplayableUrlsWithPresigned, isB2Url, getKeyFromB2Url, getB2Client } = require('../utils/b2Presigned');
@@ -74,9 +74,34 @@ async function downloadB2FileAsBase64(key) {
         for await (const chunk of stream) {
             chunks.push(chunk);
         }
-        return Buffer.concat(chunks).toString('base64');
+        const buffer = Buffer.concat(chunks);
+        return {
+            content: buffer.toString('base64'),
+            contentType: response.ContentType || 'application/octet-stream'
+        };
     } catch (err) {
         console.error('B2 download error:', key, err);
+        return null;
+    }
+}
+
+async function uploadToB2(buffer, key, contentType) {
+    const client = getB2Client();
+    const bucket = process.env.B2_BUCKET_NAME;
+    if (!client || !bucket) return null;
+
+    try {
+        await client.send(new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: buffer,
+            ContentType: contentType
+        }));
+        // Construct the B2 S3-style URL
+        const endpoint = process.env.B2_ENDPOINT; // e.g. s3.us-west-004.backblazeb2.com
+        return `https://${bucket}.${endpoint}/${key}`;
+    } catch (err) {
+        console.error('B2 upload error:', key, err);
         return null;
     }
 }
@@ -184,59 +209,56 @@ const handler = async (event) => {
             console.log(`[backupUrl] Starting for order ${orderId}, type ${type}, url ${url}`);
             const startTime = Date.now();
 
-            let content = null;
+            let buffer = null;
             let filename = null;
+            let contentType = 'application/octet-stream';
 
             if (isSupabaseStorageUrl(url)) {
                 const parsed = parseSupabaseStorageUrl(url);
                 if (parsed) {
                     console.log(`[backupUrl] Downloading from Supabase: ${parsed.bucket}/${parsed.path}`);
-                    content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
-                    filename = parsed.path.split('/').pop();
+                    const { data, error } = await supabase.storage.from(parsed.bucket).download(parsed.path);
+                    if (!error && data) {
+                        buffer = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
+                        filename = parsed.path.split('/').pop();
+                        contentType = data.type || 'application/octet-stream';
+                    }
                 }
             } else if (isB2Url(url)) {
                 const key = getKeyFromB2Url(url);
                 if (key) {
                     console.log(`[backupUrl] Downloading from B2: ${key}`);
-                    content = await downloadB2FileAsBase64(key);
-                    filename = key.split('/').pop();
+                    const result = await downloadB2FileAsBase64(key);
+                    if (result) {
+                        buffer = Buffer.from(result.content, 'base64');
+                        filename = key.split('/').pop();
+                        contentType = result.contentType;
+                    }
                 }
             }
 
             const downloadTime = Date.now() - startTime;
             console.log(`[backupUrl] Download completed in ${downloadTime}ms`);
 
-            if (!content || !filename) {
+            if (!buffer || !filename) {
                 console.error(`[backupUrl] Content or filename missing for ${url}`);
                 return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'File not found or inaccessible', url }) };
             }
 
-            const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
-
             try {
                 const folder = type === 'photo' ? 'photos' : 'files';
-                const file_path = `/Public/Workshop/${orderId}/${folder}/`;
-                console.log(`[backupUrl] Sending to Power Automate: ${file_path}${filename} (${content.length} base64 chars)`);
+                const b2Key = `workshop/${orderId}/${folder}/${filename}`;
+                console.log(`[backupUrl] Uploading to B2: ${b2Key}`);
                 const uploadStart = Date.now();
-                const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files: [{ filename, content }], file_path })
-                });
+
+                const backupUrl = await uploadToB2(buffer, b2Key, contentType);
 
                 const uploadTime = Date.now() - uploadStart;
-                console.log(`[backupUrl] Power Automate responded in ${uploadTime}ms with status ${res.status}`);
+                console.log(`[backupUrl] B2 upload completed in ${uploadTime}ms`);
 
-                if (res.status !== 200) {
-                    return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Power Automate trigger failed', status: res.status }) };
+                if (!backupUrl) {
+                    return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed' }) };
                 }
-
-                const text = await res.text();
-                let backupUrl = null;
-                try {
-                    const parsed = JSON.parse(text);
-                    backupUrl = Array.isArray(parsed) ? parsed[0] : null;
-                } catch (_) { }
 
                 return {
                     statusCode: 200,
@@ -244,7 +266,7 @@ const handler = async (event) => {
                     body: JSON.stringify({ success: true, backup_url: backupUrl, original_url: url })
                 };
             } catch (err) {
-                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Power Automate request failed', message: err.message }) };
+                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed', message: err.message }) };
             }
         }
 
@@ -268,7 +290,7 @@ const handler = async (event) => {
             return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
         }
 
-        if (action === 'backupToPowerAutomate') {
+        if (action === 'backupToB2') {
             const orderId = body?.order_id;
             if (orderId == null || String(orderId).trim() === '') {
                 return {
@@ -294,68 +316,61 @@ const handler = async (event) => {
             const rawPhotoUrls = parseUrls(row.photo_urls);
             const rawFileUrls = parseUrls(row.file_urls);
 
-            const photoFiles = [];
-            const otherFiles = [];
+            const photoBackupLinks = [];
+            const fileBackupLinks = [];
             const debug = { photos: 0, files: 0, b2: 0, supabase: 0, skipped: 0 };
 
-            async function processUrl(url, targetArray) {
-                let content = null;
+            async function processUrl(url, type) {
+                let buffer = null;
                 let filename = null;
+                let contentType = 'application/octet-stream';
 
                 if (isSupabaseStorageUrl(url)) {
                     const parsed = parseSupabaseStorageUrl(url);
                     if (parsed) {
-                        content = await downloadFileAsBase64(supabase, parsed.bucket, parsed.path);
-                        filename = parsed.path.split('/').pop();
-                        debug.supabase++;
+                        const { data, error } = await supabase.storage.from(parsed.bucket).download(parsed.path);
+                        if (!error && data) {
+                            buffer = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
+                            filename = parsed.path.split('/').pop();
+                            contentType = data.type || 'application/octet-stream';
+                            debug.supabase++;
+                        }
                     }
                 } else if (isB2Url(url)) {
                     const key = getKeyFromB2Url(url);
                     if (key) {
-                        content = await downloadB2FileAsBase64(key);
-                        filename = key.split('/').pop();
-                        debug.b2++;
+                        const result = await downloadB2FileAsBase64(key);
+                        if (result) {
+                            buffer = Buffer.from(result.content, 'base64');
+                            filename = key.split('/').pop();
+                            contentType = result.contentType;
+                            debug.b2++;
+                        }
                     }
                 }
 
-                if (content && filename) {
-                    targetArray.push({ filename, content });
-                    return true;
+                if (buffer && filename) {
+                    const folder = type === 'photo' ? 'photos' : 'files';
+                    const b2Key = `workshop/${orderId}/${folder}/${filename}`;
+                    const bUrl = await uploadToB2(buffer, b2Key, contentType);
+                    if (bUrl) {
+                        if (type === 'photo') photoBackupLinks.push(bUrl);
+                        else fileBackupLinks.push(bUrl);
+                        return true;
+                    }
                 }
                 debug.skipped++;
                 return false;
             }
 
             for (const url of rawPhotoUrls) {
-                if (await processUrl(url, photoFiles)) debug.photos++;
+                if (await processUrl(url, 'photo')) debug.photos++;
             }
             for (const url of rawFileUrls) {
-                if (await processUrl(url, otherFiles)) debug.files++;
-            }
-
-            const POWERAUTOMATE_BACKUP_URL = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c6b1e8fc11c54175900f6a4351512e6d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WgKHWKrOdlnotSsnHFVrth-wkReqll_kvmSdN7aK7Pw';
-
-            async function sendToPowerAutomate(files, file_path) {
-                if (!files || files.length === 0) return [];
-                const res = await fetch(POWERAUTOMATE_BACKUP_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files, file_path })
-                });
-                if (res.status !== 200) return [];
-                const text = await res.text();
-                try {
-                    const parsed = JSON.parse(text);
-                    return Array.isArray(parsed) ? parsed : [];
-                } catch (_) {
-                    return [];
-                }
+                if (await processUrl(url, 'file')) debug.files++;
             }
 
             try {
-                const photoBackupLinks = await sendToPowerAutomate(photoFiles, `/Public/Workshop/${orderId}/photos/`);
-                const fileBackupLinks = await sendToPowerAutomate(otherFiles, `/Public/Workshop/${orderId}/files/`);
-
                 if (row?.id) {
                     const categorizedBackups = {
                         photos: photoBackupLinks,
@@ -379,7 +394,7 @@ const handler = async (event) => {
                 return {
                     statusCode: 502,
                     headers,
-                    body: JSON.stringify({ success: false, error: 'Power Automate failed', debug })
+                    body: JSON.stringify({ success: false, error: 'Backup to B2 failed', debug })
                 };
             }
         }
