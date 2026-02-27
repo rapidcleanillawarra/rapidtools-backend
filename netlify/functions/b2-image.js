@@ -56,34 +56,31 @@ const handler = async (event) => {
         return { statusCode: 400, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Invalid key' }) };
     }
 
-    const client = getB2Client();
-    if (!client || !BUCKET) {
-        return { statusCode: 503, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'B2 not configured' }) };
-    }
-
     try {
-        const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-        const response = await client.send(command);
-        const body = await response.Body.transformToByteArray();
-        const contentType = response.ContentType || contentTypeFromKey(key);
+        // Construct the full B2 S3-style URL to use the existing signing utility
+        // The utility handles the S3 client, bucket, and signing logic.
+        const bucket = process.env.B2_BUCKET_NAME;
+        const endpoint = process.env.B2_ENDPOINT; // e.g. s3.us-west-004.backblazeb2.com
+        if (!bucket || !endpoint) throw new Error('B2 not configured');
+
+        const b2Url = `https://${bucket}.${endpoint}/${key}`;
+        const presignedUrl = await require('./utils/b2Presigned').getPresignedUrl(b2Url, 600); // 10 min expiry
 
         return {
-            statusCode: 200,
+            statusCode: 302,
             headers: {
                 ...headers,
-                'Content-Type': contentType,
-                'Content-Length': String(body.length)
+                'Location': presignedUrl,
+                'Cache-Control': 'private, max-age=600'
             },
-            body: body.toString('base64'),
-            isBase64Encoded: true
+            body: ''
         };
     } catch (err) {
         console.error('b2-image proxy error:', key, err?.message || err);
-        const code = err?.name === 'NoSuchKey' ? 404 : 502;
         return {
-            statusCode: code,
+            statusCode: 502,
             headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ error: code === 404 ? 'Not Found' : 'Bad Gateway' })
+            body: JSON.stringify({ error: 'Bad Gateway', message: err.message })
         };
     }
 };
