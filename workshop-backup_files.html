@@ -365,8 +365,6 @@
 
                 // Update row in currentRows and refresh UI
                 row.backup_files = { photos, files };
-                row.photo_urls = []; // Clear local photos since they are deleted
-                row.file_urls = [];  // Clear local files since they are deleted
 
                 const rowIdx = Array.from(tableBody.rows).findIndex(tr => tr.querySelector('.backup-btn')?.getAttribute('data-order-id') === String(orderId));
                 if (rowIdx !== -1) {

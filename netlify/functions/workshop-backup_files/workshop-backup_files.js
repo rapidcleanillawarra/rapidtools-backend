@@ -374,13 +374,11 @@ const handler = async (event) => {
                 return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to fetch original URLs for deletion', message: fetchError?.message }) };
             }
 
-            // 2. Clear original URLs and save the new backup_files
+            // 2. Save the new backup_files (keep original URLs for history as requested)
             const { error: updateError } = await supabase
                 .from(WORKSHOP_TABLE)
                 .update({
-                    backup_files: categorizedBackups,
-                    photo_urls: [], // Clear original Supabase photos
-                    file_urls: []   // Clear original Supabase files
+                    backup_files: categorizedBackups
                 })
                 .eq('order_id', orderId);
 
