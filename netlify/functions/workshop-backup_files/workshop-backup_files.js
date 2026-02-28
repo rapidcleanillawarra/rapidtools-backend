@@ -1,4 +1,6 @@
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+const { Readable } = require('stream');
 const { supabase } = require('../utils/supabaseInit');
 const { getDisplayableMediaUrls } = require('../utils/workshopPhotoUrls');
 const { getDisplayableUrlsWithPresigned, isB2Url, getKeyFromB2Url, getB2Client } = require('../utils/b2Presigned');
@@ -85,18 +87,22 @@ async function downloadB2FileAsBase64(key) {
     }
 }
 
-async function uploadToB2(buffer, key, contentType) {
+async function uploadToB2(bodyData, key, contentType) {
     const client = getB2Client();
     const bucket = process.env.B2_BUCKET_NAME;
     if (!client || !bucket) return null;
 
     try {
-        await client.send(new PutObjectCommand({
-            Bucket: bucket,
-            Key: key,
-            Body: buffer,
-            ContentType: contentType
-        }));
+        const upload = new Upload({
+            client,
+            params: {
+                Bucket: bucket,
+                Key: key,
+                Body: bodyData,
+                ContentType: contentType
+            }
+        });
+        await upload.done();
         // Construct the B2 S3-style URL
         const endpoint = process.env.B2_ENDPOINT; // e.g. s3.us-west-004.backblazeb2.com
         return `https://${bucket}.${endpoint}/${key}`;
@@ -206,61 +212,92 @@ const handler = async (event) => {
                 return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing url or order_id' }) };
             }
 
-            console.log(`[backupUrl] Starting for order ${orderId}, type ${type}, url ${url}`);
+            console.log(`[backupUrl] Starting: order=${orderId}, type=${type}, url=${url}`);
             const startTime = Date.now();
 
-            let buffer = null;
             let filename = null;
             let contentType = 'application/octet-stream';
+            let backupUrl = null;
+
+            // Use an AbortController for the fetch signal
+            const controller = new AbortController();
+            const timeoutMs = 26000; // 26s timeout (max is 30s)
 
             try {
-                // Use fetch for download (more robust in Lambda for public URLs)
+                console.log(`[backupUrl] [1/3] Fetching URL: ${url}`);
                 const downloadStart = Date.now();
-                const downloadRes = await fetch(url);
-                if (!downloadRes.ok) {
-                    throw new Error(`Download failed with status ${downloadRes.status}`);
-                }
-                const arrayBuffer = await downloadRes.arrayBuffer();
-                buffer = Buffer.from(arrayBuffer);
 
-                // Extract filename from URL (strip query params)
-                const urlObj = new URL(url);
-                filename = urlObj.pathname.split('/').pop() || 'unknown_file';
-                contentType = downloadRes.headers.get('content-type') || 'application/octet-stream';
+                // Wrap the entire process in a timeout promise
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        controller.abort();
+                        reject(new Error('Process timed out after 26 seconds'));
+                    }, timeoutMs);
+                });
 
-                console.log(`[backupUrl] Downloaded ${buffer.length} bytes in ${Date.now() - downloadStart}ms`);
-            } catch (err) {
-                console.error(`[backupUrl] Download error for ${url}:`, err.message);
-                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Download failed', message: err.message, url }) };
-            }
+                const uploadProcess = (async () => {
+                    let downloadRes;
+                    let fileBuffer;
 
-            if (!buffer || !filename) {
-                return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'File content missing', url }) };
-            }
+                    if (isSupabaseStorageUrl(url)) {
+                        const parsed = parseSupabaseStorageUrl(url);
+                        if (!parsed) throw new Error('Failed to parse Supabase Storage URL');
 
-            try {
-                const folder = type === 'photo' ? 'photos' : 'files';
-                const b2Key = `workshop/${orderId}/${folder}/${filename}`;
-                console.log(`[backupUrl] Uploading to B2: ${b2Key}`);
-                const uploadStart = Date.now();
+                        const { data, error } = await supabase.storage.from(parsed.bucket).download(parsed.path);
+                        if (error || !data) {
+                            throw new Error(`Supabase download failed: ${error?.message || 'No data'}`);
+                        }
 
-                const backupUrl = await uploadToB2(buffer, b2Key, contentType);
+                        fileBuffer = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
+                        filename = parsed.path.split('/').pop() || 'unknown_file';
+                        contentType = data.type || 'application/octet-stream';
+                    } else {
+                        downloadRes = await fetch(url, { signal: controller.signal });
+                        if (!downloadRes.ok) {
+                            throw new Error(`Download failed with status ${downloadRes.status}`);
+                        }
 
-                const uploadTime = Date.now() - uploadStart;
-                console.log(`[backupUrl] B2 upload completed in ${uploadTime}ms (Total: ${Date.now() - startTime}ms)`);
+                        // Extract filename from URL (strip query params)
+                        const urlObj = new URL(url);
+                        filename = urlObj.pathname.split('/').pop() || 'unknown_file';
+                        contentType = downloadRes.headers.get('content-type') || 'application/octet-stream';
+                        fileBuffer = downloadRes.body ? Readable.fromWeb(downloadRes.body) : Buffer.from('');
+                    }
 
-                if (!backupUrl) {
-                    return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed' }) };
-                }
+                    const folder = type === 'photo' ? 'photos' : 'files';
+                    const b2Key = `workshop/${orderId}/${folder}/${filename}`;
+                    console.log(`[backupUrl] [2/3] Filename: ${filename}, Content-Type: ${contentType}`);
+                    console.log(`[backupUrl] [3/3] Uploading stream to B2: ${b2Key}`);
 
+                    backupUrl = await uploadToB2(fileBuffer, b2Key, contentType);
+
+                    if (!backupUrl) throw new Error('B2 upload returned null');
+                    return backupUrl;
+                })();
+
+                // Race the upload against the 26s timeout
+                backupUrl = await Promise.race([uploadProcess, timeoutPromise]);
+
+                console.log(`[backupUrl] SUCCESS: Finished in ${Date.now() - startTime}ms. URL: ${backupUrl}`);
                 return {
                     statusCode: 200,
                     headers,
                     body: JSON.stringify({ success: true, backup_url: backupUrl, original_url: url })
                 };
             } catch (err) {
-                console.error(`[backupUrl] B2 Upload error:`, err.message);
-                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed', message: err.message }) };
+                controller.abort();
+                console.error(`[backupUrl] FAILED: ${err.message}`);
+                const isTimeout = err.name === 'AbortError' || err.message.toLowerCase().includes('timeout');
+                return {
+                    statusCode: 502,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: isTimeout ? 'Timed out after 26s' : 'Backup operation failed',
+                        message: err.message,
+                        url
+                    })
+                };
             }
         }
 

@@ -379,7 +379,7 @@
                 }
 
             } catch (err) {
-                console.error('Backup error:', err);
+                console.error('Backup process failed. Full error details:', err);
                 setRowStatus(orderId, 'Error: ' + err.message, '#b91c1c');
             } finally {
                 btn.disabled = false;
