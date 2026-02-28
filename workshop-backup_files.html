@@ -228,6 +228,8 @@
                         title="Number of rows to pull (1–1000)">
                 </div>
                 <button class="run-button" id="runBtn" type="button">Load completed & to be scrapped</button>
+                <button class="run-button" id="startBackupBtn" type="button"
+                    style="display: none; background: linear-gradient(135deg, #059669 0%, #047857 100%); margin-left: 10px;">start</button>
             </div>
             <div id="message" class="message" style="display: none;"></div>
             <div id="tableSection" style="display: none;">
@@ -246,6 +248,7 @@
         const tableSection = document.getElementById('tableSection');
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
+        const startBackupBtn = document.getElementById('startBackupBtn');
 
         let currentRows = [];
 
@@ -289,37 +292,16 @@
             return data.backup_url;
         }
 
-        tableBody.addEventListener('click', async (e) => {
-            const btn = e.target.closest('.backup-btn');
-            if (!btn) return;
-            const orderId = btn.getAttribute('data-order-id');
-            if (!orderId) return;
+        async function processBackup(orderId, btn) {
+            if (!orderId || !btn || btn.disabled) return false;
 
             const row = currentRows.find(r => String(r.order_id) === String(orderId));
-            if (!row) return;
+            if (!row) return false;
 
             btn.disabled = true;
             setRowStatus(orderId, 'Starting backup...');
 
             try {
-                // Simplified URL parsing logic similar to backend
-                const parseField = (val) => {
-                    if (!val) return [];
-                    if (Array.isArray(val)) return val.flatMap(v => parseField(v)).filter(Boolean);
-                    if (typeof val !== 'string') return [];
-
-                    let current = val.trim();
-                    if (current.startsWith('[') || current.startsWith('{') || (current.length > 2 && current.startsWith('"') && current.endsWith('"') && (current.includes('[') || current.includes('{')))) {
-                        try {
-                            const parsed = JSON.parse(current);
-                            if (parsed !== current) {
-                                return parseField(parsed);
-                            }
-                        } catch (e) { }
-                    }
-                    return [current];
-                };
-
                 const photoUrls = parseField(row.photo_urls);
                 const fileUrls = parseField(row.file_urls);
                 const total = photoUrls.length + fileUrls.length;
@@ -327,7 +309,7 @@
                 if (total === 0) {
                     setRowStatus(orderId, 'No files to backup', '#b91c1c');
                     btn.disabled = false;
-                    return;
+                    return true;
                 }
 
                 const photos = [];
@@ -382,13 +364,37 @@
                     // Update the action cell to show "Backed up"
                     tr.cells[0].innerHTML = '<span style="color:#166534; font-weight:600; font-size:0.8rem;">Backed up</span>';
                 }
+                return true;
 
             } catch (err) {
                 console.error('Backup process failed. Full error details:', err);
                 setRowStatus(orderId, 'Error: ' + err.message, '#b91c1c');
-            } finally {
                 btn.disabled = false;
+                return false;
             }
+        }
+
+        tableBody.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.backup-btn');
+            if (!btn) return;
+            const orderId = btn.getAttribute('data-order-id');
+            await processBackup(orderId, btn);
+        });
+
+        startBackupBtn.addEventListener('click', async () => {
+            const buttons = Array.from(document.querySelectorAll('.backup-btn')).filter(btn => !btn.disabled);
+            if (buttons.length === 0) return;
+
+            startBackupBtn.disabled = true;
+            runBtn.disabled = true;
+
+            for (const btn of buttons) {
+                const orderId = btn.getAttribute('data-order-id');
+                await processBackup(orderId, btn);
+            }
+
+            startBackupBtn.disabled = false;
+            runBtn.disabled = false;
         });
 
         runBtn.addEventListener('click', async () => {
@@ -397,6 +403,7 @@
             messageEl.style.display = 'block';
             messageEl.textContent = 'Loading...';
             messageEl.className = 'message loading';
+            startBackupBtn.style.display = 'none';
 
             try {
                 const limitInput = document.getElementById('limitInput');
@@ -451,6 +458,7 @@
                         keys.map(k => '<td>' + renderCell(k, row[k], row) + '</td>').join('') + '</tr>';
                 }).join('');
                 tableSection.style.display = 'block';
+                startBackupBtn.style.display = rows.length > 0 ? 'inline-block' : 'none';
             } catch (err) {
                 messageEl.textContent = 'Error: ' + err.message;
                 messageEl.className = 'message error';
