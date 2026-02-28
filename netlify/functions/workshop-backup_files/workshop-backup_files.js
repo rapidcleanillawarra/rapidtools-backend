@@ -213,36 +213,29 @@ const handler = async (event) => {
             let filename = null;
             let contentType = 'application/octet-stream';
 
-            if (isSupabaseStorageUrl(url)) {
-                const parsed = parseSupabaseStorageUrl(url);
-                if (parsed) {
-                    console.log(`[backupUrl] Downloading from Supabase: ${parsed.bucket}/${parsed.path}`);
-                    const { data, error } = await supabase.storage.from(parsed.bucket).download(parsed.path);
-                    if (!error && data) {
-                        buffer = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
-                        filename = parsed.path.split('/').pop();
-                        contentType = data.type || 'application/octet-stream';
-                    }
+            try {
+                // Use fetch for download (more robust in Lambda for public URLs)
+                const downloadStart = Date.now();
+                const downloadRes = await fetch(url);
+                if (!downloadRes.ok) {
+                    throw new Error(`Download failed with status ${downloadRes.status}`);
                 }
-            } else if (isB2Url(url)) {
-                const key = getKeyFromB2Url(url);
-                if (key) {
-                    console.log(`[backupUrl] Downloading from B2: ${key}`);
-                    const result = await downloadB2FileAsBase64(key);
-                    if (result) {
-                        buffer = Buffer.from(result.content, 'base64');
-                        filename = key.split('/').pop();
-                        contentType = result.contentType;
-                    }
-                }
+                const arrayBuffer = await downloadRes.arrayBuffer();
+                buffer = Buffer.from(arrayBuffer);
+
+                // Extract filename from URL (strip query params)
+                const urlObj = new URL(url);
+                filename = urlObj.pathname.split('/').pop() || 'unknown_file';
+                contentType = downloadRes.headers.get('content-type') || 'application/octet-stream';
+
+                console.log(`[backupUrl] Downloaded ${buffer.length} bytes in ${Date.now() - downloadStart}ms`);
+            } catch (err) {
+                console.error(`[backupUrl] Download error for ${url}:`, err.message);
+                return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'Download failed', message: err.message, url }) };
             }
 
-            const downloadTime = Date.now() - startTime;
-            console.log(`[backupUrl] Download completed in ${downloadTime}ms`);
-
             if (!buffer || !filename) {
-                console.error(`[backupUrl] Content or filename missing for ${url}`);
-                return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'File not found or inaccessible', url }) };
+                return { statusCode: 404, headers, body: JSON.stringify({ success: false, error: 'File content missing', url }) };
             }
 
             try {
@@ -254,7 +247,7 @@ const handler = async (event) => {
                 const backupUrl = await uploadToB2(buffer, b2Key, contentType);
 
                 const uploadTime = Date.now() - uploadStart;
-                console.log(`[backupUrl] B2 upload completed in ${uploadTime}ms`);
+                console.log(`[backupUrl] B2 upload completed in ${uploadTime}ms (Total: ${Date.now() - startTime}ms)`);
 
                 if (!backupUrl) {
                     return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed' }) };
@@ -266,6 +259,7 @@ const handler = async (event) => {
                     body: JSON.stringify({ success: true, backup_url: backupUrl, original_url: url })
                 };
             } catch (err) {
+                console.error(`[backupUrl] B2 Upload error:`, err.message);
                 return { statusCode: 502, headers, body: JSON.stringify({ success: false, error: 'B2 upload failed', message: err.message }) };
             }
         }
