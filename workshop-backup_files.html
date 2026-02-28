@@ -370,7 +370,6 @@
                 if (rowIdx !== -1) {
                     const tr = tableBody.rows[rowIdx];
                     const keys = Object.keys(row).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
-                    if (!keys.includes('photo_url_text')) keys.splice(keys.indexOf('photo_urls') + 1, 0, 'photo_url_text');
 
                     // Update all cells to reflect cleared original URLs and new backup status
                     keys.forEach((key, i) => {
@@ -426,7 +425,6 @@
                 }
 
                 const keys = Object.keys(rows[0]).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
-                if (!keys.includes('photo_url_text')) keys.splice(keys.indexOf('photo_urls') + 1, 0, 'photo_url_text');
                 tableHead.innerHTML = '<tr><th>Backup</th>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
                 tableBody.innerHTML = rows.map(row => {
                     const photos = parseField(row.photo_urls);
@@ -496,13 +494,6 @@
         }
 
         function renderCell(key, value, row) {
-            if (key === 'photo_url_text') {
-                const urls = parseField(row.photo_urls);
-                if (urls.length === 0) return '<span style="color:#94a3b8; font-style:italic;">No photos</span>';
-                return '<div style="font-size:0.7rem; max-width:260px; word-break:break-all; color:#64748b; white-space:pre-wrap; line-height:1.2; padding:4px 0;">' +
-                    urls.map(u => escapeHtml(u)).join('\n\n') +
-                    '</div>';
-            }
             if (key === 'backup_files' && value) {
                 // Handle new object structure
                 if (typeof value === 'object' && !Array.isArray(value)) {
@@ -535,19 +526,14 @@
                 }
             }
 
-            const photoKeys = ['photo_urls'];
-            if (photoKeys.includes(key)) {
-                // Use display_photo_urls if available for better compatibility (presigned/public)
-                const urls = (row && row.display_photo_urls && row.display_photo_urls.length > 0)
-                    ? row.display_photo_urls.filter(isDisplayablePhotoUrl)
-                    : parseField(value).filter(isDisplayablePhotoUrl);
-
-                if (urls.length === 0) return escapeHtml(formatCell(value));
-
-                return '<div class="photo-cell">' + urls.map(url => {
-                    const displayUrl = isB2Url(url) ? getB2ProxyUrl(url) : url;
-                    return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(displayUrl) + '" alt="Photo" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>';
-                }).join('') + '</div>';
+            if (key === 'photo_urls' || key === 'file_urls') {
+                const urls = parseField(value);
+                const count = urls.length;
+                if (count === 0) {
+                    return `<span style="color:#94a3b8; font-style:italic;">No ${key === 'photo_urls' ? 'images' : 'files'}</span>`;
+                }
+                const label = key === 'photo_urls' ? (count === 1 ? 'image' : 'images') : (count === 1 ? 'file' : 'files');
+                return `<span style="font-weight:600; color:#0d9488;">${count} ${label}</span>`;
             }
             return escapeHtml(formatCell(value));
         }
