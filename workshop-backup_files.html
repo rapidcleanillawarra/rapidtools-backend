@@ -174,8 +174,7 @@
             padding: 8px 0;
         }
 
-        .photo-cell img,
-        .photo-cell iframe {
+        .photo-cell img {
             width: 80px;
             height: 80px;
             object-fit: cover;
@@ -184,13 +183,7 @@
             background: #f8fafc;
         }
 
-        .photo-cell iframe {
-            overflow: hidden;
-            border: none;
-        }
-
-        .photo-cell img:hover,
-        .photo-cell iframe:hover {
+        .photo-cell img:hover {
             border-color: #0d9488;
             box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2);
         }
@@ -511,9 +504,10 @@
                     if (!hasPhotos && !hasFiles) return '<span style="color:#94a3b8; font-style:italic;">No backup files</span>';
 
                     if (hasPhotos) {
-                        html += '<strong>Photos:</strong><div class="photo-cell">' + value.photos.map(url =>
-                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><iframe src="' + escapeHtml(url) + '" title="Backup photo"></iframe></a>'
-                        ).join('') + '</div>';
+                        html += '<strong>Photos:</strong><div class="photo-cell">' + value.photos.map(url => {
+                            const displayUrl = isB2Url(url) ? getB2ProxyUrl(url) : url;
+                            return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(displayUrl) + '" alt="Backup photo" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>';
+                        }).join('') + '</div>';
                     }
                     if (hasFiles) {
                         html += '<strong>Files:</strong><div style="font-size:0.8rem; word-break:break-all;">' + value.files.map((url, i) =>
@@ -525,9 +519,10 @@
                 }
                 // Handle old array structure
                 if (Array.isArray(value)) {
-                    return '<div class="photo-cell">' + value.map((url, i) =>
-                        '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><iframe src="' + escapeHtml(url) + '" title="Backup file ' + (i + 1) + '"></iframe></a>'
-                    ).join('') + '</div>';
+                    return '<div class="photo-cell">' + value.map((url, i) => {
+                        const displayUrl = isB2Url(url) ? getB2ProxyUrl(url) : url;
+                        return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(displayUrl) + '" alt="Backup file ' + (i + 1) + '" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>';
+                    }).join('') + '</div>';
                 }
             }
 
