@@ -123,6 +123,29 @@ async function withDisplayUrls(rows) {
     );
 }
 
+/**
+ * Deletes files from Supabase Storage given a list of URLs.
+ */
+async function deleteSupabaseFiles(urls) {
+    const parsed = urls.map(url => parseSupabaseStorageUrl(url)).filter(Boolean);
+    if (parsed.length === 0) return;
+
+    // Group by bucket for efficient removal
+    const bucketGroups = parsed.reduce((acc, { bucket, path }) => {
+        if (!acc[bucket]) acc[bucket] = [];
+        acc[bucket].push(path);
+        return acc;
+    }, {});
+
+    for (const [bucket, paths] of Object.entries(bucketGroups)) {
+        console.log(`[deleteSupabaseFiles] Deleting ${paths.length} files from bucket "${bucket}"`);
+        const { error } = await supabase.storage.from(bucket).remove(paths);
+        if (error) {
+            console.error(`[deleteSupabaseFiles] Error deleting from bucket "${bucket}":`, error.message);
+        }
+    }
+}
+
 const handler = async (event) => {
     const headers = {
         'Content-Type': 'application/json',
@@ -340,16 +363,36 @@ const handler = async (event) => {
                 return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing order_id or categorizedBackups' }) };
             }
 
+            // 1. Fetch current URLs before they are cleared (to know what to delete from storage)
+            const { data: row, error: fetchError } = await supabase
+                .from(WORKSHOP_TABLE)
+                .select('photo_urls, file_urls')
+                .eq('order_id', orderId)
+                .single();
+
+            if (fetchError || !row) {
+                return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to fetch original URLs for deletion', message: fetchError?.message }) };
+            }
+
+            // 2. Clear original URLs and save the new backup_files
             const { error: updateError } = await supabase
                 .from(WORKSHOP_TABLE)
-                .update({ backup_files: categorizedBackups })
+                .update({
+                    backup_files: categorizedBackups,
+                    photo_urls: [], // Clear original Supabase photos
+                    file_urls: []   // Clear original Supabase files
+                })
                 .eq('order_id', orderId);
 
             if (updateError) {
                 return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Failed to update database', message: updateError.message }) };
             }
 
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+            // 3. Trigger deletion from Supabase Storage (after DB success for safety)
+            const allOriginalUrls = [...parseUrls(row.photo_urls), ...parseUrls(row.file_urls)];
+            await deleteSupabaseFiles(allOriginalUrls);
+
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true, message: 'Backup links saved and original Supabase files deleted.' }) };
         }
 
         if (action === 'backupToB2') {

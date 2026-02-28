@@ -365,14 +365,25 @@
 
                 // Update row in currentRows and refresh UI
                 row.backup_files = { photos, files };
+                row.photo_urls = []; // Clear local photos since they are deleted
+                row.file_urls = [];  // Clear local files since they are deleted
+
                 const rowIdx = Array.from(tableBody.rows).findIndex(tr => tr.querySelector('.backup-btn')?.getAttribute('data-order-id') === String(orderId));
                 if (rowIdx !== -1) {
                     const tr = tableBody.rows[rowIdx];
                     const keys = Object.keys(row).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
-                    const backupFilesIdx = keys.indexOf('backup_files') + 1; // +1 because of "Backup" button column
-                    if (backupFilesIdx > 0 && tr.cells[backupFilesIdx]) {
-                        tr.cells[backupFilesIdx].innerHTML = renderCell('backup_files', row.backup_files, row);
-                    }
+                    if (!keys.includes('photo_url_text')) keys.splice(keys.indexOf('photo_urls') + 1, 0, 'photo_url_text');
+
+                    // Update all cells to reflect cleared original URLs and new backup status
+                    keys.forEach((key, i) => {
+                        const cellIdx = i + 1; // +1 because of "Backup" button column
+                        if (tr.cells[cellIdx]) {
+                            tr.cells[cellIdx].innerHTML = renderCell(key, row[key], row);
+                        }
+                    });
+
+                    // Update the action cell to show "Backed up"
+                    tr.cells[0].innerHTML = '<span style="color:#166534; font-weight:600; font-size:0.8rem;">Backed up</span>';
                 }
 
             } catch (err) {
