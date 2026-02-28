@@ -177,6 +177,7 @@ const handler = async (event) => {
                 .from(WORKSHOP_TABLE)
                 .select('status, photo_urls, file_urls, order_id, backup_files')
                 .in('status', ['completed', 'to_be_scrapped'])
+                .is('backup_files', null)
                 .limit(limit);
 
             if (error) {
@@ -252,6 +253,9 @@ const handler = async (event) => {
                         fileBuffer = data instanceof Buffer ? data : Buffer.from(await data.arrayBuffer());
                         filename = parsed.path.split('/').pop() || 'unknown_file';
                         contentType = data.type || 'application/octet-stream';
+                    } else if (isB2Url(url)) {
+                        console.log(`[backupUrl] URL is already a B2 URL, skipping download/upload: ${url}`);
+                        return url;
                     } else {
                         downloadRes = await fetch(url, { signal: controller.signal });
                         if (!downloadRes.ok) {
@@ -467,6 +471,7 @@ const handler = async (event) => {
         const { data: workshopRows, error: workshopError } = await supabase
             .from(WORKSHOP_TABLE)
             .select('status, photo_urls, file_urls, order_id, backup_files')
+            .is('backup_files', null)
             .limit(limit);
 
         if (workshopError) {

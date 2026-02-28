@@ -422,10 +422,30 @@
                 const keys = Object.keys(rows[0]).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
                 if (!keys.includes('photo_url_text')) keys.splice(keys.indexOf('photo_urls') + 1, 0, 'photo_url_text');
                 tableHead.innerHTML = '<tr><th>Backup</th>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
-                tableBody.innerHTML = rows.map(row =>
-                    '<tr><td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td>' +
-                    keys.map(k => '<td>' + renderCell(k, row[k], row) + '</td>').join('') + '</tr>'
-                ).join('');
+                tableBody.innerHTML = rows.map(row => {
+                    const photos = parseField(row.photo_urls);
+                    const files = parseField(row.file_urls);
+                    const total = photos.length + files.length;
+                    const allSourceB2 = total > 0 && photos.every(isB2Url) && files.every(isB2Url);
+
+                    const hasBackup = row.backup_files && (
+                        (Array.isArray(row.backup_files) && row.backup_files.length > 0) ||
+                        (row.backup_files.photos && row.backup_files.photos.length > 0) ||
+                        (row.backup_files.files && row.backup_files.files.length > 0)
+                    );
+
+                    let actionCell = '';
+                    if (total === 0) {
+                        actionCell = '<span style="color:#94a3b8; font-size:0.8rem;">No files</span>';
+                    } else if (allSourceB2 || hasBackup) {
+                        actionCell = '<span style="color:#166534; font-weight:600; font-size:0.8rem;">Backed up</span>';
+                    } else {
+                        actionCell = '<button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button>';
+                    }
+
+                    return '<tr><td>' + actionCell + '</td>' +
+                        keys.map(k => '<td>' + renderCell(k, row[k], row) + '</td>').join('') + '</tr>';
+                }).join('');
                 tableSection.style.display = 'block';
             } catch (err) {
                 messageEl.textContent = 'Error: ' + err.message;
@@ -451,7 +471,7 @@
 
         function isB2Url(url) {
             if (!url || typeof url !== 'string') return false;
-            // Matches .s3.region.backblazeb2.com/ pattern
+            // Matches .s3.region.backblazeb2.com/ pattern (consistent with backend BACKBLAZE_S3_PATTERN)
             return /\.s3\.[\w-]+\.backblazeb2\.com\//.test(url.trim());
         }
 
