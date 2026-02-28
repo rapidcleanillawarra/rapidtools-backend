@@ -188,11 +188,6 @@
             box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2);
         }
 
-        .photo-cell a {
-            display: block;
-            line-height: 0;
-        }
-
         .backup-btn {
             background: #0d9488;
             color: white;
@@ -474,31 +469,10 @@
             return div.innerHTML;
         }
 
-        function isDisplayablePhotoUrl(url) {
-            if (typeof url !== 'string' || !url.trim()) return false;
-            const u = url.trim();
-            // Allow relative proxy URLs or absolute external URLs
-            return u.startsWith('/') || u.startsWith('https://') || u.startsWith('http://');
-        }
-
         function isB2Url(url) {
             if (!url || typeof url !== 'string') return false;
             // Matches .s3.region.backblazeb2.com/ pattern (consistent with backend BACKBLAZE_S3_PATTERN)
             return /\.s3\.[\w-]+\.backblazeb2\.com\//.test(url.trim());
-        }
-
-        function getB2ProxyUrl(url) {
-            if (!isB2Url(url)) return url;
-            try {
-                const u = new URL(url.trim());
-                const key = u.pathname.replace(/^\//, '');
-                if (!key) return url;
-                // btoa in browser for base64url encoding (replace + with -, / with _, remove =)
-                const encoded = btoa(key).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                return `/.netlify/functions/b2-image?key=${encoded}`;
-            } catch (e) {
-                return url;
-            }
         }
 
         function renderCell(key, value, row) {
@@ -512,10 +486,9 @@
                     if (!hasPhotos && !hasFiles) return '<span style="color:#94a3b8; font-style:italic;">No backup files</span>';
 
                     if (hasPhotos) {
-                        html += '<strong>Photos:</strong><div class="photo-cell">' + value.photos.map(url => {
-                            const displayUrl = isB2Url(url) ? getB2ProxyUrl(url) : url;
-                            return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(displayUrl) + '" alt="Backup photo" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>';
-                        }).join('') + '</div>';
+                        html += '<strong>Photos:</strong><div style="font-size:0.8rem; word-break:break-all;">' + value.photos.map((url, i) =>
+                            '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">Photo ' + (i + 1) + ' (' + escapeHtml(url) + ')</a>'
+                        ).join('<br>') + '</div>';
                     }
                     if (hasFiles) {
                         html += '<strong>Files:</strong><div style="font-size:0.8rem; word-break:break-all;">' + value.files.map((url, i) =>
@@ -527,10 +500,9 @@
                 }
                 // Handle old array structure
                 if (Array.isArray(value)) {
-                    return '<div class="photo-cell">' + value.map((url, i) => {
-                        const displayUrl = isB2Url(url) ? getB2ProxyUrl(url) : url;
-                        return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(displayUrl) + '" alt="Backup file ' + (i + 1) + '" onerror="this.src=\'https://placehold.co/80?text=Error\'"></a>';
-                    }).join('') + '</div>';
+                    return '<div style="font-size:0.8rem; word-break:break-all;">' + value.map((url, i) =>
+                        '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">Backup File ' + (i + 1) + ' (' + escapeHtml(url) + ')</a>'
+                    ).join('<br>') + '</div>';
                 }
             }
 
