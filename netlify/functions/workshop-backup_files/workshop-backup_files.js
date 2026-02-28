@@ -201,6 +201,7 @@ const handler = async (event) => {
                 .select('status, photo_urls, file_urls, order_id, backup_files')
                 .in('status', ['completed', 'to_be_scrapped'])
                 .is('backup_files', null)
+                .or('and(photo_urls.not.is.null,photo_urls.neq.{}),and(file_urls.not.is.null,file_urls.neq.[],file_urls.neq."")')
                 .limit(limit);
 
             if (error) {
@@ -521,6 +522,7 @@ const handler = async (event) => {
             .from(WORKSHOP_TABLE)
             .select('status, photo_urls, file_urls, order_id, backup_files')
             .is('backup_files', null)
+            .or('and(photo_urls.not.is.null,photo_urls.neq.{}),and(file_urls.not.is.null,file_urls.neq.[],file_urls.neq."")')
             .limit(limit);
 
         if (workshopError) {
