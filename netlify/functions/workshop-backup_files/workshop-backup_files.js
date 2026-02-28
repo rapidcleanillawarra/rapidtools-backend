@@ -254,8 +254,16 @@ const handler = async (event) => {
                         filename = parsed.path.split('/').pop() || 'unknown_file';
                         contentType = data.type || 'application/octet-stream';
                     } else if (isB2Url(url)) {
-                        console.log(`[backupUrl] URL is already a B2 URL, skipping download/upload: ${url}`);
-                        return url;
+                        console.log(`[backupUrl] URL is already a B2 URL, downloading before re-uploading: ${url}`);
+                        const key = getKeyFromB2Url(url);
+                        if (!key) throw new Error('Failed to extract B2 key from URL');
+
+                        const result = await downloadB2FileAsBase64(key);
+                        if (!result) throw new Error('B2 download failed');
+
+                        fileBuffer = Buffer.from(result.content, 'base64');
+                        filename = key.split('/').pop() || 'unknown_file';
+                        contentType = result.contentType;
                     } else {
                         downloadRes = await fetch(url, { signal: controller.signal });
                         if (!downloadRes.ok) {

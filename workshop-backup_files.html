@@ -437,7 +437,7 @@
                     let actionCell = '';
                     if (total === 0) {
                         actionCell = '<span style="color:#94a3b8; font-size:0.8rem;">No files</span>';
-                    } else if (allSourceB2 || hasBackup) {
+                    } else if (hasBackup) {
                         actionCell = '<span style="color:#166534; font-weight:600; font-size:0.8rem;">Backed up</span>';
                     } else {
                         actionCell = '<button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button>';
