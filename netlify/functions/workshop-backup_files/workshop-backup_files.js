@@ -207,12 +207,13 @@ const handler = async (event) => {
             const url = body?.url;
             const orderId = body?.order_id;
             const type = body?.type; // 'photo' or 'file'
+            const index = body?.index; // 1-based index
 
-            if (!url || !orderId) {
-                return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing url or order_id' }) };
+            if (!url || !orderId || index == null) {
+                return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'Missing url, order_id, or index' }) };
             }
 
-            console.log(`[backupUrl] Starting: order=${orderId}, type=${type}, url=${url}`);
+            console.log(`[backupUrl] Starting: order=${orderId}, type=${type}, index=${index}, url=${url}`);
             const startTime = Date.now();
 
             let filename = null;
@@ -264,9 +265,27 @@ const handler = async (event) => {
                         fileBuffer = downloadRes.body ? Readable.fromWeb(downloadRes.body) : Buffer.from('');
                     }
 
+                    // Extract extension from URL or content-type
+                    let extension = '';
+                    try {
+                        const urlObj = new URL(url);
+                        const parts = urlObj.pathname.split('.');
+                        if (parts.length > 1) {
+                            extension = parts.pop().split(/[?#]/)[0];
+                        }
+                    } catch (_) { }
+
+                    if (!extension && contentType) {
+                        const ctMap = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+                        extension = ctMap[contentType] || '';
+                    }
+                    if (!extension) extension = 'bin';
+
                     const folder = type === 'photo' ? 'photos' : 'files';
-                    const b2Key = `workshop/${orderId}/${folder}/${filename}`;
-                    console.log(`[backupUrl] [2/3] Filename: ${filename}, Content-Type: ${contentType}`);
+                    const newFilename = `${orderId}_${index}.${extension}`;
+                    const b2Key = `workshop/${orderId}/${folder}/${newFilename}`;
+
+                    console.log(`[backupUrl] [2/3] New Filename: ${newFilename}, Original: ${filename || 'unknown'}, Content-Type: ${contentType}`);
                     console.log(`[backupUrl] [3/3] Uploading stream to B2: ${b2Key}`);
 
                     backupUrl = await uploadToB2(fileBuffer, b2Key, contentType);
@@ -350,8 +369,10 @@ const handler = async (event) => {
             const photoBackupLinks = [];
             const fileBackupLinks = [];
             const debug = { photos: 0, files: 0, b2: 0, supabase: 0, skipped: 0 };
+            let globalCounter = 0;
 
             async function processUrl(url, type) {
+                globalCounter++;
                 let buffer = null;
                 let filename = null;
                 let contentType = 'application/octet-stream';
@@ -380,9 +401,21 @@ const handler = async (event) => {
                     }
                 }
 
-                if (buffer && filename) {
+                if (buffer) {
+                    // Extract extension
+                    let extension = '';
+                    if (filename && filename.includes('.')) {
+                        extension = filename.split('.').pop();
+                    } else if (contentType) {
+                        const ctMap = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+                        extension = ctMap[contentType] || '';
+                    }
+                    if (!extension) extension = 'bin';
+
                     const folder = type === 'photo' ? 'photos' : 'files';
-                    const b2Key = `workshop/${orderId}/${folder}/${filename}`;
+                    const newFilename = `${orderId}_${globalCounter}.${extension}`;
+                    const b2Key = `workshop/${orderId}/${folder}/${newFilename}`;
+
                     const bUrl = await uploadToB2(buffer, b2Key, contentType);
                     if (bUrl) {
                         if (type === 'photo') photoBackupLinks.push(bUrl);

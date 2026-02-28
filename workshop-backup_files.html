@@ -271,11 +271,11 @@
             statusEl.style.color = color;
         }
 
-        async function backupUrl(url, orderId, type) {
+        async function backupUrl(url, orderId, type, index) {
             const res = await fetch('/.netlify/functions/workshop-backup_files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'backupUrl', url, order_id: orderId, type })
+                body: JSON.stringify({ action: 'backupUrl', url, order_id: orderId, type, index })
             });
 
             if (res.status !== 200) {
@@ -340,14 +340,14 @@
                 for (const url of photoUrls) {
                     count++;
                     setRowStatus(orderId, `Backing up photo ${count}/${total}...`);
-                    const bUrl = await backupUrl(url, orderId, 'photo');
+                    const bUrl = await backupUrl(url, orderId, 'photo', count);
                     if (bUrl) photos.push(bUrl);
                 }
 
                 for (const url of fileUrls) {
                     count++;
                     setRowStatus(orderId, `Backing up file ${count}/${total}...`);
-                    const bUrl = await backupUrl(url, orderId, 'file');
+                    const bUrl = await backupUrl(url, orderId, 'file', count);
                     if (bUrl) files.push(bUrl);
                 }
 
@@ -420,6 +420,7 @@
                 }
 
                 const keys = Object.keys(rows[0]).filter(k => !['display_photo_urls', 'display_file_urls'].includes(k));
+                if (!keys.includes('photo_url_text')) keys.splice(keys.indexOf('photo_urls') + 1, 0, 'photo_url_text');
                 tableHead.innerHTML = '<tr><th>Backup</th>' + keys.map(k => '<th>' + escapeHtml(k) + '</th>').join('') + '</tr>';
                 tableBody.innerHTML = rows.map(row =>
                     '<tr><td><button class="backup-btn" type="button" data-order-id="' + escapeHtml(String(row.order_id ?? '')) + '">Backup</button></td>' +
@@ -469,6 +470,13 @@
         }
 
         function renderCell(key, value, row) {
+            if (key === 'photo_url_text') {
+                const urls = parseField(row.photo_urls);
+                if (urls.length === 0) return '<span style="color:#94a3b8; font-style:italic;">No photos</span>';
+                return '<div style="font-size:0.7rem; max-width:260px; word-break:break-all; color:#64748b; white-space:pre-wrap; line-height:1.2; padding:4px 0;">' +
+                    urls.map(u => escapeHtml(u)).join('\n\n') +
+                    '</div>';
+            }
             if (key === 'backup_files' && value) {
                 // Handle new object structure
                 if (typeof value === 'object' && !Array.isArray(value)) {
