@@ -35,23 +35,23 @@ function parseSupabaseStorageUrl(url) {
  */
 function parseUrls(value) {
     if (!value) return [];
-    if (Array.isArray(value)) return value.flat().filter(Boolean);
+    if (Array.isArray(value)) return value.flatMap(v => parseUrls(v)).filter(Boolean);
     if (typeof value !== 'string') return [];
 
     let current = value.trim();
     // Repeatedly parse if it looks like a JSON string
-    while (typeof current === 'string' && (current.startsWith('[') || current.startsWith('"['))) {
+    if (current.startsWith('[') || current.startsWith('{') || (current.length > 2 && current.startsWith('"') && current.endsWith('"') && (current.includes('[') || current.includes('{')))) {
         try {
+            // Handle escaped JSON strings
             const parsed = JSON.parse(current);
-            if (Array.isArray(parsed)) {
-                return parsed.flat().map(v => parseUrls(v)).flat().filter(Boolean);
+            if (parsed !== current) {
+                return parseUrls(parsed);
             }
-            current = parsed;
         } catch (e) {
-            break;
+            // Not JSON, continue
         }
     }
-    return typeof current === 'string' ? [current] : [];
+    return [current];
 }
 
 async function downloadFileAsBase64(supabaseClient, bucket, path) {

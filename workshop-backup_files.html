@@ -312,15 +312,19 @@
                 // Simplified URL parsing logic similar to backend
                 const parseField = (val) => {
                     if (!val) return [];
-                    if (Array.isArray(val)) return val.flat().filter(Boolean);
-                    if (typeof val === 'string') {
+                    if (Array.isArray(val)) return val.flatMap(v => parseField(v)).filter(Boolean);
+                    if (typeof val !== 'string') return [];
+
+                    let current = val.trim();
+                    if (current.startsWith('[') || current.startsWith('{') || (current.length > 2 && current.startsWith('"') && current.endsWith('"') && (current.includes('[') || current.includes('{')))) {
                         try {
-                            const p = JSON.parse(val);
-                            if (Array.isArray(p)) return p.flat().filter(Boolean);
-                        } catch (_) { }
-                        return [val];
+                            const parsed = JSON.parse(current);
+                            if (parsed !== current) {
+                                return parseField(parsed);
+                            }
+                        } catch (e) { }
                     }
-                    return [];
+                    return [current];
                 };
 
                 const photoUrls = parseField(row.photo_urls);
@@ -547,23 +551,19 @@
         // Robustly parse URLs from string, array, or nested JSON
         function parseField(value) {
             if (!value) return [];
-            if (Array.isArray(value)) return value.flat().filter(Boolean);
+            if (Array.isArray(value)) return value.flatMap(v => parseField(v)).filter(Boolean);
             if (typeof value !== 'string') return [];
 
             let current = value.trim();
-            // Repeatedly parse if it looks like a JSON string
-            while (typeof current === 'string' && (current.startsWith('[') || current.startsWith('"['))) {
+            if (current.startsWith('[') || current.startsWith('{') || (current.length > 2 && current.startsWith('"') && current.endsWith('"') && (current.includes('[') || current.includes('{')))) {
                 try {
                     const parsed = JSON.parse(current);
-                    if (Array.isArray(parsed)) {
-                        return parsed.flat().map(v => parseField(v)).flat().filter(Boolean);
+                    if (parsed !== current) {
+                        return parseField(parsed);
                     }
-                    current = parsed;
-                } catch (e) {
-                    break;
-                }
+                } catch (e) { }
             }
-            return typeof current === 'string' ? [current] : [];
+            return [current];
         }
 
         function formatCell(value) {
