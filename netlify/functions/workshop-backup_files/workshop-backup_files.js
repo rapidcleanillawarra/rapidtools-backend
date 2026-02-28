@@ -221,7 +221,7 @@ const handler = async (event) => {
 
             // Use an AbortController for the fetch signal
             const controller = new AbortController();
-            const timeoutMs = 26000; // 26s timeout (max is 30s)
+            const timeoutMs = 29000; // 29s timeout (max is 30s)
 
             try {
                 console.log(`[backupUrl] [1/3] Fetching URL: ${url}`);
@@ -231,7 +231,7 @@ const handler = async (event) => {
                 const timeoutPromise = new Promise((_, reject) => {
                     setTimeout(() => {
                         controller.abort();
-                        reject(new Error('Process timed out after 26 seconds'));
+                        reject(new Error('Process timed out after 29 seconds'));
                     }, timeoutMs);
                 });
 
@@ -293,7 +293,7 @@ const handler = async (event) => {
                     headers,
                     body: JSON.stringify({
                         success: false,
-                        error: isTimeout ? 'Timed out after 26s' : 'Backup operation failed',
+                        error: isTimeout ? 'Timed out after 29s' : 'Backup operation failed',
                         message: err.message,
                         url
                     })
