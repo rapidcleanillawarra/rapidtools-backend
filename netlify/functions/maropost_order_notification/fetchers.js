@@ -71,6 +71,46 @@ const fetchOrderData = async (orderId) => {
   }
 };
 
+// Fetch customer data (EmailAddress, SecondaryEmailAddress) by username from Power Automate endpoint
+const fetchCustomerData = async (username) => {
+  const customerPayload = {
+    "Filter": {
+      "Username": username,
+      "OutputSelector": [
+        "EmailAddress",
+        "SecondaryEmailAddress"
+      ]
+    },
+    "action": "GetCustomer"
+  };
+
+  try {
+    const response = await fetch(POWER_AUTOMATE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(customerPayload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const customer = data?.Customer?.[0] ?? null;
+    console.log('Customer data fetched:', { username, customer });
+    return customer;
+  } catch (error) {
+    console.error('Failed to fetch customer data:', {
+      username,
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+};
+
 // Fetch related backorders using the same endpoint
 const fetchRelatedBackorders = async (orderId, username) => {
   const backorderPayload = {
@@ -272,6 +312,7 @@ const getPreferredImage = (images) => {
 
 module.exports = {
   fetchOrderData,
+  fetchCustomerData,
   fetchRelatedBackorders,
   fetchRelatedOrderLinks,
   fetchRelatedOrdersDetails,

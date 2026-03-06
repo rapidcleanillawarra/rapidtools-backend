@@ -6,7 +6,7 @@ const { generateDispatchEmailHTML } = require('./dispatch-email-template');
 const { generateTaxInvoiceHTML } = require('./tax-invoice-template');
 
 // Import fetchers
-const { fetchOrderData, fetchRelatedBackorders, fetchRelatedOrderLinks, fetchRelatedOrdersDetails, fetchRmaByOrderId, fetchProductImages, getPreferredImage } = require('./fetchers');
+const { fetchOrderData, fetchCustomerData, fetchRelatedBackorders, fetchRelatedOrderLinks, fetchRelatedOrdersDetails, fetchRmaByOrderId, fetchProductImages, getPreferredImage } = require('./fetchers');
 
 const handler = async (event) => {
   // Add CORS headers for production
@@ -116,6 +116,20 @@ const handler = async (event) => {
     } catch (fetchError) {
       console.error('Failed to fetch order data:', fetchError.message);
       // Continue processing even if order fetch fails
+    }
+
+    // Fetch customer data (EmailAddress, SecondaryEmailAddress) when username is available
+    let customerData = null;
+    try {
+      const username = orderDetails?.Order?.[0]?.Username;
+      if (username) {
+        customerData = await fetchCustomerData(username);
+      } else {
+        console.log('No username found in order details, skipping customer data fetch');
+      }
+    } catch (customerError) {
+      console.error('Failed to fetch customer data:', customerError.message);
+      customerData = null;
     }
 
     // Fetch related backorder information
@@ -392,6 +406,7 @@ const handler = async (event) => {
           order_id: payload.OrderID,
           document_id: documentId,
           customer_email: orderDetails?.Order?.[0]?.Email || '',
+          customer_secondary_email: customerData?.SecondaryEmailAddress ?? '',
           customer_username: orderDetails?.Order?.[0]?.Username || '',
           folder_name: `Sent Invoices/${formatFolderDate()}`,
           file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}-${documentId}`,
@@ -406,25 +421,27 @@ const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        message: 'Order notification processed successfully',
-        order_id: payload.OrderID,
-        document_id: documentId,
-        customer_email: orderDetails?.Order?.[0]?.Email || '',
-        order_status: payload.OrderStatus,
-        event_id: payload.EventID,
-        display_mode: payload.Display || 'json',
-        processed: true,
-        html_generated: htmlEmail !== null,
-        tax_invoice_html_generated: taxInvoiceHtml !== null,
-        order_details_fetched: orderDetails !== null,
-        order_details: orderDetails,
-        related_backorders_fetched: relatedBackorders !== null,
-        related_backorders: relatedBackorders,
-        product_images_fetched: productImages !== null,
-        product_images: productImages,
-        timestamp: payload.CurrentTime
-      }),
+        body: JSON.stringify({
+          message: 'Order notification processed successfully',
+          order_id: payload.OrderID,
+          document_id: documentId,
+          customer_email: orderDetails?.Order?.[0]?.Email || '',
+          order_status: payload.OrderStatus,
+          event_id: payload.EventID,
+          display_mode: payload.Display || 'json',
+          processed: true,
+          html_generated: htmlEmail !== null,
+          tax_invoice_html_generated: taxInvoiceHtml !== null,
+          order_details_fetched: orderDetails !== null,
+          order_details: orderDetails,
+          customer_data_fetched: customerData != null,
+          customer_data: customerData,
+          related_backorders_fetched: relatedBackorders !== null,
+          related_backorders: relatedBackorders,
+          product_images_fetched: productImages !== null,
+          product_images: productImages,
+          timestamp: payload.CurrentTime
+        }),
     };
 
   } catch (error) {
