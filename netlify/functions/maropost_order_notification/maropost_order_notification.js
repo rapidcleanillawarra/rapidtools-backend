@@ -397,6 +397,11 @@ const handler = async (event) => {
       };
     }
 
+    // Concatenate EmailAddress and SecondaryEmailAddress from customer data (semicolon-separated)
+    const customerAdditionalEmails = [customerData?.EmailAddress, customerData?.SecondaryEmailAddress]
+      .filter(Boolean)
+      .join(';');
+
     // Check if Display field is set to "data" to return JSON with email and PDF HTML
     if (payload.Display === 'data') {
       return {
@@ -407,6 +412,7 @@ const handler = async (event) => {
           document_id: documentId,
           customer_email: orderDetails?.Order?.[0]?.Email || '',
           customer_secondary_email: customerData?.SecondaryEmailAddress ?? '',
+          customer_additional_emails: customerAdditionalEmails,
           customer_username: orderDetails?.Order?.[0]?.Username || '',
           folder_name: `Sent Invoices/${formatFolderDate()}`,
           file_name: `${payload.OrderID}-${orderDetails?.Order?.[0]?.Username || ''}-${formatFileNameDate()}-${documentId}`,
@@ -430,6 +436,7 @@ const handler = async (event) => {
           event_id: payload.EventID,
           display_mode: payload.Display || 'json',
           processed: true,
+          customer_additional_emails: customerAdditionalEmails,
           html_generated: htmlEmail !== null,
           tax_invoice_html_generated: taxInvoiceHtml !== null,
           order_details_fetched: orderDetails !== null,
