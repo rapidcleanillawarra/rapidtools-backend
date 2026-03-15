@@ -280,6 +280,7 @@
                     body: JSON.stringify({ customer_username: username })
                 });
                 const data = await res.json();
+                console.log('Fetched Orders Data:', data);
                 
                 if (data.success) {
                     calcText.textContent = `Found ${data.count} dispatched orders for ${username}`;

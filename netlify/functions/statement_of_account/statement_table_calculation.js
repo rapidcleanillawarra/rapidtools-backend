@@ -50,6 +50,7 @@ const handler = async (event) => {
             Filter: {
                 Username: customer_username,
                 OrderStatus: ['Dispatched'],
+                PaymentStatus: ['Pending', 'PartialPaid'],
                 OutputSelector: [
                     'ID',
                     'OrderID',
