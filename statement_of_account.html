@@ -165,6 +165,22 @@
             text-transform: uppercase;
         }
         .badge-dispatched { background: #dcfce7; color: #166534; }
+
+        /* Statement PDF preview */
+        .statement-pdf-preview {
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .statement-pdf-preview iframe {
+            display: block;
+            width: 100%;
+            min-height: 600px;
+            height: 80vh;
+            border: none;
+        }
     </style>
 </head>
 <body>
@@ -205,6 +221,7 @@
                 <div class="response-text">Results will appear here...</div>
                 <div id="ordersList"></div>
             </div>
+            <div id="statementPdfPreview" class="statement-pdf-preview" style="display: none;"></div>
         </div>
     </div>
 
@@ -261,6 +278,8 @@
         const calcText = calcResponse.querySelector('.response-text');
         const ordersList = document.getElementById('ordersList');
 
+        const statementPdfPreview = document.getElementById('statementPdfPreview');
+
         calcBtn.addEventListener('click', async () => {
             const username = usernameInput.value.trim();
             if (!username) {
@@ -272,6 +291,8 @@
             calcText.textContent = 'Fetching orders for ' + username + '...';
             calcResponse.className = 'response-container loading';
             ordersList.innerHTML = '';
+            statementPdfPreview.style.display = 'none';
+            statementPdfPreview.innerHTML = '';
 
             try {
                 const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
@@ -286,9 +307,14 @@
                     calcText.textContent = `Found ${data.count} dispatched orders for ${username}`;
                     calcResponse.className = 'response-container success';
                     
-                    if (data.count > 0) {
-                        renderOrdersTable(data.orders);
-                    } else {
+                    if (data.pdf_html) {
+                        const iframe = document.createElement('iframe');
+                        iframe.srcdoc = data.pdf_html;
+                        statementPdfPreview.innerHTML = '';
+                        statementPdfPreview.appendChild(iframe);
+                        statementPdfPreview.style.display = 'block';
+                    }
+                    if (data.count === 0 && !data.pdf_html) {
                         ordersList.innerHTML = '<p style="margin-top: 10px; color: #64748b;">No dispatched orders found for this customer.</p>';
                     }
                 } else {
@@ -302,45 +328,6 @@
                 calcBtn.disabled = false;
             }
         });
-
-        function renderOrdersTable(orders) {
-            let html = `
-                <table class="orders-table">
-                    <thead>
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Date Placed</th>
-                            <th>Total</th>
-                            <th>Paid</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            orders.forEach(order => {
-                const date = order.DatePlaced ? new Date(order.DatePlaced).toLocaleDateString() : 'N/A';
-                const total = parseFloat(order.GrandTotal || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-                const paid = parseFloat(order.paidAmount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-                const balance = parseFloat(order.outstandingAmount || 0);
-                
-                html += `
-                    <tr>
-                        <td><strong>${order.OrderID || order.ID}</strong></td>
-                        <td>${date}</td>
-                        <td>${total}</td>
-                        <td style="color: #059669; font-weight: 600;">${paid}</td>
-                        <td><span class="badge badge-dispatched">${order.OrderStatus}</span></td>
-                    </tr>
-                `;
-            });
-            
-            html += `
-                    </tbody>
-                </table>
-            `;
-            ordersList.innerHTML = html;
-        }
     </script>
 </body>
 </html>

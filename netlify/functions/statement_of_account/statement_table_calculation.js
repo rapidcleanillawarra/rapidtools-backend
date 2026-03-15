@@ -1,8 +1,12 @@
 const POWER_AUTOMATE_ENDPOINT = 'https://default61576f99244849ec8803974b47673f.57.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ef89e5969a8f45778307f167f435253c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pPhk80gODQOi843ixLjZtPPWqTeXIbIt9ifWZP6CJfY';
 
+const { generateStatementHTML } = require('../generate_invoices_statements/statementTemplates');
+const { formatCustomerNameFromBillingAddress, fetchCustomerByUsername } = require('../generate_invoices_statements/customerUtils');
+
 /**
  * Netlify Function: statement_table_calculation
  * Accepts a customer username and fetches dispatched orders from Maropost via Power Automate.
+ * Returns orders plus pdf_html (full statement HTML matching generate_invoices_statements).
  */
 const handler = async (event) => {
     const headers = {
@@ -95,8 +99,8 @@ const handler = async (event) => {
 
         const rawOrders = data.Order || [];
 
-        // Process orders to calculate paid and outstanding amounts (logic from generate_invoices_statements)
-        const orders = rawOrders.map(order => {
+        // Process orders and filter (same as generate_invoices_statements)
+        let orders = rawOrders.map(order => {
             const grandTotal = parseFloat(order.GrandTotal || 0);
             const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
                 ? order.OrderPayment.reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0)
@@ -105,10 +109,61 @@ const handler = async (event) => {
 
             return {
                 ...order,
-                paidAmount: paymentsSum,
-                outstandingAmount: outstandingAmount
+                grandTotal,
+                paymentsSum,
+                outstandingAmount,
+                paidAmount: paymentsSum
             };
         });
+
+        orders = orders.filter(order => {
+            if (order.grandTotal === 0 && order.outstandingAmount <= 0.01) {
+                return false;
+            }
+            return true;
+        });
+
+        // Fetch customer for pdf_customer_name
+        const customerData = await fetchCustomerByUsername(customer_username);
+        const billingAddress = customerData?.BillingAddress || {};
+        const pdfCustomerName = formatCustomerNameFromBillingAddress(billingAddress) || customer_username;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const invoices = orders.map(order => {
+            let isPastDue = false;
+            if (order.DatePaymentDue) {
+                const dueDate = new Date(order.DatePaymentDue);
+                dueDate.setHours(0, 0, 0, 0);
+                isPastDue = dueDate < today;
+            }
+            return {
+                id: order.ID,
+                grandTotal: order.grandTotal,
+                payments: order.OrderPayment || [],
+                outstandingAmount: order.outstandingAmount,
+                datePlaced: order.DatePlaced || null,
+                datePaymentDue: order.DatePaymentDue || null,
+                isPastDue
+            };
+        });
+
+        const total_balance = orders.reduce((sum, o) => sum + o.outstandingAmount, 0);
+        const due_invoice_balance = invoices
+            .filter(inv => inv.isPastDue)
+            .reduce((sum, inv) => sum + inv.outstandingAmount, 0);
+
+        const customer = {
+            customer_username: customer_username,
+            pdf_customer_name: pdfCustomerName,
+            total_orders: orders.length,
+            total_balance,
+            due_invoice_balance,
+            invoices
+        };
+
+        const pdfHtml = generateStatementHTML(customer, customer.invoices);
 
         return {
             statusCode: 200,
@@ -116,7 +171,8 @@ const handler = async (event) => {
             body: JSON.stringify({
                 success: true,
                 count: orders.length,
-                orders: orders
+                orders: orders,
+                pdf_html: pdfHtml
             })
         };
 
