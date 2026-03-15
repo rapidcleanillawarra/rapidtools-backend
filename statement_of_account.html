@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statement of Account - Fetch & Save Customers</title>
+    <title>Statement of Account - Management</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -15,7 +15,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
@@ -30,8 +30,73 @@
         }
         .header h1 { font-size: 1.75rem; margin-bottom: 8px; }
         .header p { opacity: 0.9; font-size: 0.95rem; }
-        .content { padding: 30px; }
-        .action-section { text-align: center; margin-bottom: 24px; }
+        
+        /* Tabs System */
+        .tabs-nav {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+        .tab-btn:hover {
+            color: #4f46e5;
+            background: #f1f5f9;
+        }
+        .tab-btn.active {
+            color: #4f46e5;
+            border-bottom: 3px solid #4f46e5;
+            background: white;
+        }
+        .tab-content {
+            padding: 30px;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .action-section { 
+            margin-bottom: 24px; 
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+        }
+        .input-group {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-group label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #475569;
+        }
+        .input-group input {
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus {
+            border-color: #4f46e5;
+        }
+
         .run-button {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
@@ -53,43 +118,124 @@
             cursor: not-allowed;
             transform: none;
         }
-        #response {
+
+        .response-container {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             padding: 16px;
             min-height: 80px;
+            margin-top: 20px;
+        }
+        .response-text {
             font-family: ui-monospace, monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             white-space: pre-wrap;
             word-break: break-word;
         }
-        #response.loading { color: #64748b; }
-        #response.error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
-        #response.success { background: #f0fdf4; border-color: #bbf7d0; }
+        .loading { color: #64748b; }
+        .error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+        .success { background: #f0fdf4; border-color: #bbf7d0; }
+
+        /* Table Styling */
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .orders-table th, .orders-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .orders-table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #334155;
+        }
+        .orders-table tr:hover {
+            background: #f8fafc;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-dispatched { background: #dcfce7; color: #166534; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>Statement of Account</h1>
-            <p>Fetch customers with positive balance and save to statement_of_accounts</p>
+            <p>Management Portal</p>
         </div>
-        <div class="content">
+
+        <nav class="tabs-nav">
+            <button class="tab-btn active" onclick="openTab('fetchTab')">Fetch & Save Customers</button>
+            <button class="tab-btn" onclick="openTab('calcTab')">Statement Table Calculation</button>
+        </nav>
+
+        <!-- Tab 1: Fetch & Save -->
+        <div id="fetchTab" class="tab-content active">
             <div class="action-section">
-                <button class="run-button" id="runBtn" type="button">Fetch & Save Customers</button>
+                <p style="margin-bottom: 16px; color: #64748b; text-align: center;">
+                    Fetch all customers with positive balance and save them to the database for today.
+                </p>
+                <button class="run-button" id="runBtn" type="button">Run Fetch & Save</button>
             </div>
-            <div id="response"></div>
+            <div id="fetchResponse" class="response-container">
+                <div class="response-text">Results will appear here...</div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Table Calculation -->
+        <div id="calcTab" class="tab-content">
+            <div class="action-section">
+                <div class="input-group">
+                    <label for="username">Customer Username</label>
+                    <input type="text" id="username" placeholder="Enter username (e.g. john_doe)">
+                </div>
+                <button class="run-button" id="calcBtn" type="button">Calculate Dispatched Orders</button>
+            </div>
+            <div id="calcResponse" class="response-container">
+                <div class="response-text">Results will appear here...</div>
+                <div id="ordersList"></div>
+            </div>
         </div>
     </div>
+
     <script>
+        function openTab(tabId) {
+            // Hide all tab content
+            const contents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+            
+            // Deactivate all tab buttons
+            const buttons = document.getElementsByClassName('tab-btn');
+            for (let i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('active');
+            }
+            
+            // Show current tab and activate button
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // --- Logic for Tab 1 (Fetch & Save) ---
         const runBtn = document.getElementById('runBtn');
-        const responseEl = document.getElementById('response');
+        const fetchResponse = document.getElementById('fetchResponse');
+        const fetchText = fetchResponse.querySelector('.response-text');
 
         runBtn.addEventListener('click', async () => {
             runBtn.disabled = true;
-            responseEl.textContent = 'Loading...';
-            responseEl.className = 'loading';
+            fetchText.textContent = 'Loading...';
+            fetchResponse.className = 'response-container loading';
 
             try {
                 const res = await fetch('/.netlify/functions/statement_of_account-fetch_filter_save_customers', {
@@ -98,15 +244,101 @@
                     body: JSON.stringify({})
                 });
                 const data = await res.json();
-                responseEl.textContent = JSON.stringify(data, null, 2);
-                responseEl.className = data.success ? 'success' : 'error';
+                fetchText.textContent = JSON.stringify(data, null, 2);
+                fetchResponse.className = 'response-container ' + (data.success ? 'success' : 'error');
             } catch (err) {
-                responseEl.textContent = 'Error: ' + err.message;
-                responseEl.className = 'error';
+                fetchText.textContent = 'Error: ' + err.message;
+                fetchResponse.className = 'response-container error';
             } finally {
                 runBtn.disabled = false;
             }
         });
+
+        // --- Logic for Tab 2 (Table Calculation) ---
+        const calcBtn = document.getElementById('calcBtn');
+        const usernameInput = document.getElementById('username');
+        const calcResponse = document.getElementById('calcResponse');
+        const calcText = calcResponse.querySelector('.response-text');
+        const ordersList = document.getElementById('ordersList');
+
+        calcBtn.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            calcBtn.disabled = true;
+            calcText.textContent = 'Fetching orders for ' + username + '...';
+            calcResponse.className = 'response-container loading';
+            ordersList.innerHTML = '';
+
+            try {
+                const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customer_username: username })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    calcText.textContent = `Found ${data.count} dispatched orders for ${username}`;
+                    calcResponse.className = 'response-container success';
+                    
+                    if (data.count > 0) {
+                        renderOrdersTable(data.orders);
+                    } else {
+                        ordersList.innerHTML = '<p style="margin-top: 10px; color: #64748b;">No dispatched orders found for this customer.</p>';
+                    }
+                } else {
+                    calcText.textContent = 'Error: ' + (data.message || 'Unknown error');
+                    calcResponse.className = 'response-container error';
+                }
+            } catch (err) {
+                calcText.textContent = 'Error: ' + err.message;
+                calcResponse.className = 'response-container error';
+            } finally {
+                calcBtn.disabled = false;
+            }
+        });
+
+        function renderOrdersTable(orders) {
+            let html = `
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Date Placed</th>
+                            <th>Total</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            orders.forEach(order => {
+                const date = order.DatePlaced ? new Date(order.DatePlaced).toLocaleDateString() : 'N/A';
+                const total = parseFloat(order.GrandTotal || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+                const balance = parseFloat(order.OutstandingAmount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+                
+                html += `
+                    <tr>
+                        <td><strong>${order.OrderID || order.ID}</strong></td>
+                        <td>${date}</td>
+                        <td>${total}</td>
+                        <td style="color: ${order.OutstandingAmount > 0 ? '#dc2626' : '#059669'}; font-weight: 600;">${balance}</td>
+                        <td><span class="badge badge-dispatched">${order.OrderStatus}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            ordersList.innerHTML = html;
+        }
     </script>
 </body>
 </html>
