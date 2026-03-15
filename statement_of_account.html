@@ -311,7 +311,7 @@
                             <th>Order ID</th>
                             <th>Date Placed</th>
                             <th>Total</th>
-                            <th>Balance</th>
+                            <th>Paid</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -321,14 +321,15 @@
             orders.forEach(order => {
                 const date = order.DatePlaced ? new Date(order.DatePlaced).toLocaleDateString() : 'N/A';
                 const total = parseFloat(order.GrandTotal || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-                const balance = parseFloat(order.OutstandingAmount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+                const paid = parseFloat(order.paidAmount || 0).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+                const balance = parseFloat(order.outstandingAmount || 0);
                 
                 html += `
                     <tr>
                         <td><strong>${order.OrderID || order.ID}</strong></td>
                         <td>${date}</td>
                         <td>${total}</td>
-                        <td style="color: ${order.OutstandingAmount > 0 ? '#dc2626' : '#059669'}; font-weight: 600;">${balance}</td>
+                        <td style="color: #059669; font-weight: 600;">${paid}</td>
                         <td><span class="badge badge-dispatched">${order.OrderStatus}</span></td>
                     </tr>
                 `;

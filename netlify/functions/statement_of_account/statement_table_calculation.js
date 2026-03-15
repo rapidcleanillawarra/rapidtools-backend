@@ -79,7 +79,7 @@ const handler = async (event) => {
         }
 
         const data = await response.json();
-
+        
         if (data.Ack !== 'Success') {
             console.error('API Error Response:', data);
             return {
@@ -93,7 +93,22 @@ const handler = async (event) => {
             };
         }
 
-        const orders = data.Order || [];
+        const rawOrders = data.Order || [];
+
+        // Process orders to calculate paid and outstanding amounts (logic from generate_invoices_statements)
+        const orders = rawOrders.map(order => {
+            const grandTotal = parseFloat(order.GrandTotal || 0);
+            const paymentsSum = order.OrderPayment && Array.isArray(order.OrderPayment)
+                ? order.OrderPayment.reduce((sum, p) => sum + parseFloat(p.Amount || 0), 0)
+                : 0;
+            const outstandingAmount = grandTotal - paymentsSum;
+
+            return {
+                ...order,
+                paidAmount: paymentsSum,
+                outstandingAmount: outstandingAmount
+            };
+        });
 
         return {
             statusCode: 200,
