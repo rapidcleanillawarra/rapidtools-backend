@@ -163,7 +163,8 @@ const handler = async (event) => {
             invoices
         };
 
-        const pdfHtml = generateStatementHTML(customer, customer.invoices);
+        let pdfHtml = generateStatementHTML(customer, customer.invoices);
+        pdfHtml = pdfHtml.replace(/<p>Generated On:[^<]*<\/p>\s*/i, '');
 
         return {
             statusCode: 200,
