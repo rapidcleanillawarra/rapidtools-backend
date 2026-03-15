@@ -56,14 +56,12 @@ const handler = async (event) => {
                     'DatePlaced',
                     'DateInvoiced',
                     'GrandTotal',
-                    'OutstandingAmount',
                     'OrderStatus',
                     'DatePaymentDue',
                     'PurchaseOrderNumber',
                     'OrderPayment',
                     'OrderPayment.PaymentType',
-                    'OrderPayment.Amount',
-                    'TaxInclusive'
+                    'OrderPayment.Amount'
                 ]
             },
             action: 'GetOrder'
@@ -80,7 +78,7 @@ const handler = async (event) => {
         }
 
         const data = await response.json();
-        
+
         if (data.Ack !== 'Success') {
             console.error('API Error Response:', data);
             return {
