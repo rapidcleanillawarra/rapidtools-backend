@@ -193,6 +193,7 @@
         <nav class="tabs-nav">
             <button class="tab-btn active" onclick="openTab('fetchTab')">Fetch & Save Customers</button>
             <button class="tab-btn" onclick="openTab('calcTab')">Statement Table Calculation</button>
+            <button class="tab-btn" onclick="openTab('processTab')">Generate PDF Process</button>
         </nav>
 
         <!-- Tab 1: Fetch & Save -->
@@ -222,6 +223,36 @@
                 <div id="ordersList"></div>
             </div>
             <div id="statementPdfPreview" class="statement-pdf-preview" style="display: none;"></div>
+        </div>
+
+        <!-- Tab 3: Generate PDF Process -->
+        <div id="processTab" class="tab-content">
+            <div class="action-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
+                    <h2 style="font-size: 1.25rem; color: #1e293b;">Today's Generated Processes</h2>
+                    <button class="run-button" id="refreshProcessBtn" style="padding: 10px 20px;">Refresh List</button>
+                </div>
+                <div id="processStatus" style="margin-bottom: 15px; font-size: 0.9rem; color: #64748b;"></div>
+                <div class="table-wrap" style="width: 100%; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <table class="orders-table" id="processTable">
+                        <thead>
+                            <tr>
+                                <th>Created At</th>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Balance</th>
+                                <th>Sent</th>
+                                <th>PDF</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">Click refresh to load today's processes...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -328,6 +359,75 @@
                 calcBtn.disabled = false;
             }
         });
+
+        // --- Logic for Tab 3 (Generate PDF Process) ---
+        const refreshProcessBtn = document.getElementById('refreshProcessBtn');
+        const processTableBody = document.getElementById('processTableBody');
+        const processStatus = document.getElementById('processStatus');
+
+        async function fetchTodayProcesses() {
+            refreshProcessBtn.disabled = true;
+            processStatus.textContent = 'Fetching processes...';
+            processTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;">Loading...</td></tr>';
+
+            try {
+                const res = await fetch('/.netlify/functions/statement_of_account-get_today_processes');
+                const data = await res.json();
+
+                if (data.success) {
+                    processStatus.textContent = `Found ${data.count} processes generated today.`;
+                    renderProcessTable(data.rows);
+                } else {
+                    processStatus.textContent = 'Error: ' + (data.error || 'Failed to fetch');
+                    processTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #b91c1c; padding: 40px;">Error: ${data.error}</td></tr>`;
+                }
+            } catch (err) {
+                processStatus.textContent = 'Error: ' + err.message;
+                processTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #b91c1c; padding: 40px;">Error: ${err.message}</td></tr>`;
+            } finally {
+                refreshProcessBtn.disabled = false;
+            }
+        }
+
+        function renderProcessTable(rows) {
+            if (!rows || rows.length === 0) {
+                processTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">No processes found for today.</td></tr>';
+                return;
+            }
+
+            processTableBody.innerHTML = rows.map(row => {
+                const date = new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const sentBadge = row.sent 
+                    ? '<span class="badge" style="background: #dcfce7; color: #166534;">YES</span>' 
+                    : '<span class="badge" style="background: #fee2e2; color: #991b1b;">NO</span>';
+                
+                const pdfLink = row.pdf_link 
+                    ? `<a href="${row.pdf_link}" target="_blank" style="color: #4f46e5; text-decoration: none; font-weight: 600;">View PDF</a>` 
+                    : '<span style="color: #94a3b8;">N/A</span>';
+
+                return `
+                    <tr>
+                        <td>${date}</td>
+                        <td style="font-weight: 600; color: #1e293b;">${row.customer_username}</td>
+                        <td style="font-size: 0.85rem;">${row.customer_email || '-'}</td>
+                        <td>$${parseFloat(row.balance || 0).toFixed(2)}</td>
+                        <td>${sentBadge}</td>
+                        <td>${pdfLink}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        refreshProcessBtn.addEventListener('click', fetchTodayProcesses);
+
+        // Auto-fetch if processTab is opened
+        const originalOpenTab = window.openTab;
+        window.openTab = function(tabId) {
+            originalOpenTab(tabId);
+            if (tabId === 'processTab') {
+                fetchTodayProcesses();
+            }
+        };
     </script>
 </body>
 </html>
