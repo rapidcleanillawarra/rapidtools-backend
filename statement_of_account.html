@@ -471,6 +471,15 @@
                 return;
             }
 
+            // Only process rows where the PDF column is effectively "N/A" (no pdf_link set)
+            const rowsNeedingPdf = latestProcessRows.filter(row => !row.pdf_link);
+
+            if (rowsNeedingPdf.length === 0) {
+                processStatus.textContent = 'All rows already have a PDF or a final status.';
+                alert('All rows already have a PDF or a final status. Nothing to process.');
+                return;
+            }
+
             startProcessBtn.disabled = true;
             refreshProcessBtn.disabled = true;
 
@@ -478,10 +487,10 @@
             let successCount = 0;
             let errorCount = 0;
 
-            for (const row of latestProcessRows) {
+            for (const row of rowsNeedingPdf) {
                 const username = row.customer_username;
                 processed += 1;
-                processStatus.textContent = `Processing ${username} (${processed}/${latestProcessRows.length})...`;
+                processStatus.textContent = `Processing ${username} (${processed}/${rowsNeedingPdf.length})...`;
 
                 try {
                     const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
