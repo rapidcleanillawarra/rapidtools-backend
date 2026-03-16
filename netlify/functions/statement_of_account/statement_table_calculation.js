@@ -69,7 +69,7 @@ const handler = async (event) => {
 
         if (!orderRes.ok) throw new Error(`Orders API returned ${orderRes.status}`);
         const orderData = await orderRes.json();
-        
+       
         if (orderData.Ack !== 'Success') {
             return {
                 statusCode: 502,
@@ -92,6 +92,10 @@ const handler = async (event) => {
                 paidAmount: paymentsSum
             };
         }).filter(o => !(o.grandTotal === 0 && o.outstandingAmount <= 0.01));
+
+        const totalGrandTotal = rawOrders.reduce((sum, order) => {
+            return sum + parseFloat(order.GrandTotal || 0);
+        }, 0);
 
         const customerData = await fetchCustomerByUsername(customer_username);
         const billingAddress = customerData?.BillingAddress || {};
@@ -147,6 +151,49 @@ const handler = async (event) => {
                 })
             };
         } else if (action === 'generate_pdf') {
+            // If there are no orders, or the total GrandTotal is 0, 
+            // we don't generate a PDF and instead store a descriptive pdf_link.
+            if (!rawOrders.length || totalGrandTotal === 0) {
+                const pdfLinkFallback = !rawOrders.length ? 'No Orders' : 'Grand Total is 0';
+
+                try {
+                    if (!supabase) {
+                        console.error('Supabase client not initialized in statement_table_calculation');
+                    } else {
+                        const pdfGeneratedAt = new Date().toISOString();
+
+                        const { error: updateError } = await supabase
+                            .from('statement_of_accounts')
+                            .update({
+                                pdf_link: pdfLinkFallback,
+                                pdf_generated_at: pdfGeneratedAt
+                            })
+                            .eq('customer_username', customer_username)
+                            .is('pdf_link', null);
+
+                        if (updateError) {
+                            console.error('Failed to update statement_of_accounts with fallback PDF info:', updateError);
+                        } else {
+                            console.log('Updated statement_of_accounts with fallback PDF info for', customer_username, {
+                                pdf_link: pdfLinkFallback,
+                                pdf_generated_at: pdfGeneratedAt
+                            });
+                        }
+                    }
+                } catch (dbErr) {
+                    console.error('Error while updating statement_of_accounts with fallback PDF info:', dbErr);
+                }
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        message: pdfLinkFallback
+                    })
+                };
+            }
+
             console.log('Routing to PDF Generation Power Automate');
             
             const dateStr = new Intl.DateTimeFormat('en-US', { 

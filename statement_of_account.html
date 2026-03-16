@@ -439,15 +439,20 @@
                     ? '<span class="badge" style="background: #dcfce7; color: #166534;">YES</span>' 
                     : '<span class="badge" style="background: #fee2e2; color: #991b1b;">NO</span>';
                 
-                const pdfLink = row.pdf_link 
-                    ? `<a href="${row.pdf_link}" target="_blank" style="color: #4f46e5; text-decoration: none; font-weight: 600;">View PDF</a>` 
-                    : '<span style="color: #94a3b8;">N/A</span>';
+                let pdfCellContent;
+                if (!row.pdf_link) {
+                    pdfCellContent = '<span style="color: #94a3b8;">N/A</span>';
+                } else if (row.pdf_link === 'No Orders' || row.pdf_link === 'Grand Total is 0') {
+                    pdfCellContent = `<span style="color: #64748b; font-weight: 600;">${row.pdf_link}</span>`;
+                } else {
+                    pdfCellContent = `<a href="${row.pdf_link}" target="_blank" style="color: #4f46e5; text-decoration: none; font-weight: 600;">View PDF</a>`;
+                }
 
                 return `
                     <tr>
                         <td style="font-weight: 600; color: #1e293b;">${row.customer_username}</td>
                         <td>$${parseFloat(row.balance || 0).toFixed(2)}</td>
-                        <td>${pdfLink}</td>
+                        <td>${pdfCellContent}</td>
                         <td>${sentBadge}</td>
                         <td style="font-size: 0.85rem;">${row.customer_email || '-'}</td>
                         <td>${date}</td>
