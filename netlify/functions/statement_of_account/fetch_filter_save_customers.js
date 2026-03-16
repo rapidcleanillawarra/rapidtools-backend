@@ -77,7 +77,7 @@ const handler = async (event) => {
                 body: JSON.stringify({
                     Filter: {
                         Active: true,
-                        OutputSelector: ['Username', 'AccountBalance']
+                        OutputSelector: ['Username', 'AccountBalance', 'EmailAddress', 'SecondaryEmailAddress']
                     },
                     action: 'GetCustomer'
                 })
@@ -178,13 +178,14 @@ const handler = async (event) => {
         // 3. Batch insert (customer_username, balance; created_at from DB default)
         const rows = toInsert.map((c) => ({
             customer_username: String(c.Username),
-            balance: parseFloat(c.AccountBalance || 0)
+            balance: parseFloat(c.AccountBalance || 0),
+            customer_email: [c.EmailAddress, c.SecondaryEmailAddress].filter(Boolean).join(';')
         }));
 
         const { data: inserted, error: insertError } = await supabase
             .from('statement_of_accounts')
             .insert(rows)
-            .select('id, customer_username, balance, created_at');
+            .select('id, customer_username, balance, customer_email, created_at');
 
         if (insertError) {
             console.error('Supabase insert error:', insertError);
