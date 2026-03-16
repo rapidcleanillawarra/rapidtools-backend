@@ -3,6 +3,7 @@ const GEN_PDF_ENDPOINT = 'https://default61576f99244849ec8803974b47673f.57.envir
 
 const { generateStatementHTML } = require('../generate_invoices_statements/statementTemplates');
 const { formatCustomerNameFromBillingAddress, fetchCustomerByUsername } = require('../generate_invoices_statements/customerUtils');
+const { supabase } = require('../utils/supabaseInit');
 
 /**
  * Netlify Function: statement_table_calculation
@@ -164,9 +165,14 @@ const handler = async (event) => {
                 customFileName = `${customFileName}-(${company})`;
             }
 
+            // Avoid double .pdf – Power Automate will handle extension if needed
+            if (customFileName.toLowerCase().endsWith('.pdf')) {
+                customFileName = customFileName.slice(0, -4);
+            }
+
             const pdfPayload = {
                 pdf: pdfHtml,
-                file_name: `${customFileName}.pdf`,
+                file_name: customFileName,
                 folder_name: `Statements/${dateStr}`,
                 customer_username: customer_username,
                 created_by: 'RapidTools Backend'
@@ -181,6 +187,42 @@ const handler = async (event) => {
             const pdfResultText = await pdfRes.text();
             let pdfResultData;
             try { pdfResultData = JSON.parse(pdfResultText); } catch (e) { pdfResultData = pdfResultText; }
+
+            // If PDF generation succeeded, update statement_of_accounts with pdf_link and pdf_generated_at
+            if (pdfRes.ok && pdfResultData && typeof pdfResultData === 'object' && !Array.isArray(pdfResultData)) {
+                try {
+                    if (!supabase) {
+                        console.error('Supabase client not initialized in statement_table_calculation');
+                    } else {
+                        const folderPath = pdfResultData.folder_path || '';
+                        const fileName = pdfResultData.file_name || '';
+                        // Build a public-style link based on folder_path; adjust if you have a direct sharing URL instead
+                        const pdfLink = pdfResultData.onedrive_id || folderPath || null;
+
+                        const pdfGeneratedAt = pdfResultData.created_at || new Date().toISOString();
+
+                        const { error: updateError } = await supabase
+                            .from('statement_of_accounts')
+                            .update({
+                                pdf_link: pdfLink,
+                                pdf_generated_at: pdfGeneratedAt
+                            })
+                            .eq('customer_username', customer_username)
+                            .is('pdf_link', null);
+
+                        if (updateError) {
+                            console.error('Failed to update statement_of_accounts with PDF info:', updateError);
+                        } else {
+                            console.log('Updated statement_of_accounts with PDF info for', customer_username, {
+                                pdf_link: pdfLink,
+                                pdf_generated_at: pdfGeneratedAt
+                            });
+                        }
+                    }
+                } catch (dbErr) {
+                    console.error('Error while updating statement_of_accounts with PDF info:', dbErr);
+                }
+            }
 
             return {
                 statusCode: pdfRes.status,
