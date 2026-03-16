@@ -216,7 +216,10 @@
                     <label for="username">Customer Username</label>
                     <input type="text" id="username" placeholder="Enter username (e.g. john_doe)">
                 </div>
-                <button class="run-button" id="calcBtn" type="button">Calculate Dispatched Orders</button>
+                <div style="display: flex; gap: 12px; justify-content: center; width: 100%;">
+                    <button class="run-button" id="calcBtn" type="button">Calculate Dispatched Orders</button>
+                    <button class="run-button" id="genPdfBtn" type="button" disabled style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);">Generate PDF</button>
+                </div>
             </div>
             <div id="calcResponse" class="response-container">
                 <div class="response-text">Results will appear here...</div>
@@ -308,8 +311,10 @@
         const calcResponse = document.getElementById('calcResponse');
         const calcText = calcResponse.querySelector('.response-text');
         const ordersList = document.getElementById('ordersList');
-
         const statementPdfPreview = document.getElementById('statementPdfPreview');
+
+        const genPdfBtn = document.getElementById('genPdfBtn');
+        let currentPdfHtml = '';
 
         calcBtn.addEventListener('click', async () => {
             const username = usernameInput.value.trim();
@@ -319,11 +324,13 @@
             }
 
             calcBtn.disabled = true;
+            genPdfBtn.disabled = true;
             calcText.textContent = 'Fetching orders for ' + username + '...';
             calcResponse.className = 'response-container loading';
             ordersList.innerHTML = '';
             statementPdfPreview.style.display = 'none';
             statementPdfPreview.innerHTML = '';
+            currentPdfHtml = '';
 
             try {
                 const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
@@ -339,6 +346,8 @@
                     calcResponse.className = 'response-container success';
                     
                     if (data.pdf_html) {
+                        currentPdfHtml = data.pdf_html;
+                        genPdfBtn.disabled = false;
                         const iframe = document.createElement('iframe');
                         iframe.srcdoc = data.pdf_html;
                         statementPdfPreview.innerHTML = '';
@@ -357,6 +366,43 @@
                 calcResponse.className = 'response-container error';
             } finally {
                 calcBtn.disabled = false;
+            }
+        });
+
+        genPdfBtn.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            if (!username) return;
+
+            genPdfBtn.disabled = true;
+            const originalText = genPdfBtn.textContent;
+            genPdfBtn.textContent = 'Generating...';
+
+            console.log('Requesting Backend PDF Generation for:', username);
+
+            try {
+                const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        customer_username: username,
+                        action: 'generate_pdf'
+                    })
+                });
+                
+                const data = await res.json();
+                console.log('Backend PDF Response:', data);
+
+                if (data.success) {
+                    alert('PDF Generation Successful!');
+                } else {
+                    alert('Error generating PDF: ' + (data.message || data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error('Error generating PDF:', err);
+                alert('Error generating PDF: ' + err.message);
+            } finally {
+                genPdfBtn.disabled = false;
+                genPdfBtn.textContent = originalText;
             }
         });
 
