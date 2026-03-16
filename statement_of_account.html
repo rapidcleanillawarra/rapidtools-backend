@@ -506,6 +506,32 @@
                             response: data,
                             httpStatus: res.status
                         });
+
+                        // Try to update the in-memory row with the latest pdf_link-style value
+                        let updatedPdfLink = null;
+                        if (data && typeof data === 'object') {
+                            // Case 1: Normal PDF generation, derive link from Power Automate response
+                            const pa = data.power_automate_response;
+                            if (pa && typeof pa === 'object' && !Array.isArray(pa)) {
+                                const folderPath = pa.folder_path || '';
+                                const fileName = pa.file_name || '';
+                                const onedriveId = pa.onedrive_id || '';
+                                updatedPdfLink = onedriveId || folderPath || null;
+                            }
+
+                            // Case 2: Our backend short-circuit for no orders / grand total 0
+                            if (!updatedPdfLink && typeof data.message === 'string') {
+                                if (data.message === 'No Orders' || data.message === 'Grand Total is 0') {
+                                    updatedPdfLink = data.message;
+                                }
+                            }
+                        }
+
+                        if (updatedPdfLink) {
+                            row.pdf_link = updatedPdfLink;
+                            // Re-render table so the change is visible in real time
+                            renderProcessTable(latestProcessRows);
+                        }
                     } else {
                         errorCount += 1;
                         console.error('Error generating PDF for', username, data);
