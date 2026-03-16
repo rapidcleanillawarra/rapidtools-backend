@@ -237,12 +237,12 @@
                     <table class="orders-table" id="processTable">
                         <thead>
                             <tr>
-                                <th>Created At</th>
                                 <th>Customer</th>
-                                <th>Email</th>
                                 <th>Balance</th>
-                                <th>Sent</th>
                                 <th>PDF</th>
+                                <th>Sent</th>
+                                <th>Email</th>
+                                <th>Created At</th>
                             </tr>
                         </thead>
                         <tbody id="processTableBody">
@@ -407,12 +407,12 @@
 
                 return `
                     <tr>
-                        <td>${date}</td>
                         <td style="font-weight: 600; color: #1e293b;">${row.customer_username}</td>
-                        <td style="font-size: 0.85rem;">${row.customer_email || '-'}</td>
                         <td>$${parseFloat(row.balance || 0).toFixed(2)}</td>
-                        <td>${sentBadge}</td>
                         <td>${pdfLink}</td>
+                        <td>${sentBadge}</td>
+                        <td style="font-size: 0.85rem;">${row.customer_email || '-'}</td>
+                        <td>${date}</td>
                     </tr>
                 `;
             }).join('');
