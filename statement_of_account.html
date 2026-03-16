@@ -217,8 +217,7 @@
                     <input type="text" id="username" placeholder="Enter username (e.g. john_doe)">
                 </div>
                 <div style="display: flex; gap: 12px; justify-content: center; width: 100%;">
-                    <button class="run-button" id="calcBtn" type="button">Calculate Dispatched Orders</button>
-                    <button class="run-button" id="genPdfBtn" type="button" disabled style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);">Generate PDF</button>
+                    <button class="run-button" id="generateBtn" type="button" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);">Generate PDF</button>
                 </div>
             </div>
             <div id="calcResponse" class="response-container">
@@ -305,104 +304,89 @@
             }
         });
 
-        // --- Logic for Tab 2 (Table Calculation) ---
-        const calcBtn = document.getElementById('calcBtn');
+        // --- Logic for Tab 2 (Table Calculation & PDF Generation) ---
         const usernameInput = document.getElementById('username');
         const calcResponse = document.getElementById('calcResponse');
         const calcText = calcResponse.querySelector('.response-text');
         const ordersList = document.getElementById('ordersList');
         const statementPdfPreview = document.getElementById('statementPdfPreview');
+        const generateBtn = document.getElementById('generateBtn');
 
-        const genPdfBtn = document.getElementById('genPdfBtn');
-        let currentPdfHtml = '';
-
-        calcBtn.addEventListener('click', async () => {
+        generateBtn.addEventListener('click', async () => {
             const username = usernameInput.value.trim();
             if (!username) {
                 alert('Please enter a username');
                 return;
             }
 
-            calcBtn.disabled = true;
-            genPdfBtn.disabled = true;
+            generateBtn.disabled = true;
+            const originalText = generateBtn.textContent;
+            generateBtn.textContent = 'Calculating & Generating...';
+
             calcText.textContent = 'Fetching orders for ' + username + '...';
             calcResponse.className = 'response-container loading';
             ordersList.innerHTML = '';
             statementPdfPreview.style.display = 'none';
             statementPdfPreview.innerHTML = '';
-            currentPdfHtml = '';
 
             try {
-                const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
+                // Step 1: Calculate & get PDF HTML
+                const calcRes = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ customer_username: username })
                 });
-                const data = await res.json();
-                console.log('Fetched Orders Data:', data);
-                
-                if (data.success) {
-                    calcText.textContent = `Found ${data.count} dispatched orders for ${username}`;
-                    calcResponse.className = 'response-container success';
-                    
-                    if (data.pdf_html) {
-                        currentPdfHtml = data.pdf_html;
-                        genPdfBtn.disabled = false;
-                        const iframe = document.createElement('iframe');
-                        iframe.srcdoc = data.pdf_html;
-                        statementPdfPreview.innerHTML = '';
-                        statementPdfPreview.appendChild(iframe);
-                        statementPdfPreview.style.display = 'block';
-                    }
-                    if (data.count === 0 && !data.pdf_html) {
-                        ordersList.innerHTML = '<p style="margin-top: 10px; color: #64748b;">No dispatched orders found for this customer.</p>';
-                    }
-                } else {
-                    calcText.textContent = 'Error: ' + (data.message || 'Unknown error');
+                const calcData = await calcRes.json();
+                console.log('Fetched Orders Data:', calcData);
+
+                if (!calcData.success) {
+                    calcText.textContent = 'Error: ' + (calcData.message || 'Unknown error');
                     calcResponse.className = 'response-container error';
+                    return;
                 }
-            } catch (err) {
-                calcText.textContent = 'Error: ' + err.message;
-                calcResponse.className = 'response-container error';
-            } finally {
-                calcBtn.disabled = false;
-            }
-        });
 
-        genPdfBtn.addEventListener('click', async () => {
-            const username = usernameInput.value.trim();
-            if (!username) return;
+                calcText.textContent = `Found ${calcData.count} dispatched orders for ${username}`;
+                calcResponse.className = 'response-container success';
 
-            genPdfBtn.disabled = true;
-            const originalText = genPdfBtn.textContent;
-            genPdfBtn.textContent = 'Generating...';
+                if (calcData.pdf_html) {
+                    const iframe = document.createElement('iframe');
+                    iframe.srcdoc = calcData.pdf_html;
+                    statementPdfPreview.innerHTML = '';
+                    statementPdfPreview.appendChild(iframe);
+                    statementPdfPreview.style.display = 'block';
+                } else if (calcData.count === 0) {
+                    ordersList.innerHTML = '<p style="margin-top: 10px; color: #64748b;">No dispatched orders found for this customer.</p>';
+                }
 
-            console.log('Requesting Backend PDF Generation for:', username);
+                // Step 2: Trigger PDF Generation
+                console.log('Requesting Backend PDF Generation for:', username);
+                generateBtn.textContent = 'Generating PDF...';
 
-            try {
-                const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
+                const pdfRes = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         customer_username: username,
                         action: 'generate_pdf'
                     })
                 });
-                
-                const data = await res.json();
-                console.log('Backend PDF Response:', data);
 
-                if (data.success) {
+                const pdfData = await pdfRes.json();
+                console.log('Backend PDF Response:', pdfData);
+
+                if (pdfData.success) {
                     alert('PDF Generation Successful!');
                 } else {
-                    alert('Error generating PDF: ' + (data.message || data.error || 'Unknown error'));
+                    alert('Error generating PDF: ' + (pdfData.message || pdfData.error || 'Unknown error'));
                 }
             } catch (err) {
-                console.error('Error generating PDF:', err);
+                console.error('Error in calculation/PDF generation:', err);
+                calcText.textContent = 'Error: ' + err.message;
+                calcResponse.className = 'response-container error';
                 alert('Error generating PDF: ' + err.message);
             } finally {
-                genPdfBtn.disabled = false;
-                genPdfBtn.textContent = originalText;
+                generateBtn.disabled = false;
+                generateBtn.textContent = originalText;
             }
         });
 
