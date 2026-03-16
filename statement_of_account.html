@@ -232,7 +232,10 @@
             <div class="action-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
                     <h2 style="font-size: 1.25rem; color: #1e293b;">Today's Generated Processes</h2>
-                    <button class="run-button" id="refreshProcessBtn" style="padding: 10px 20px;">Refresh List</button>
+                    <div>
+                        <button class="run-button" id="startProcessBtn" style="padding: 10px 20px; margin-right: 8px;">Start</button>
+                        <button class="run-button" id="refreshProcessBtn" style="padding: 10px 20px;">Refresh List</button>
+                    </div>
                 </div>
                 <div id="processStatus" style="margin-bottom: 15px; font-size: 0.9rem; color: #64748b;"></div>
                 <div class="table-wrap" style="width: 100%; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -392,8 +395,10 @@
 
         // --- Logic for Tab 3 (Generate PDF Process) ---
         const refreshProcessBtn = document.getElementById('refreshProcessBtn');
+        const startProcessBtn = document.getElementById('startProcessBtn');
         const processTableBody = document.getElementById('processTableBody');
         const processStatus = document.getElementById('processStatus');
+        let latestProcessRows = [];
 
         async function fetchTodayProcesses() {
             refreshProcessBtn.disabled = true;
@@ -405,13 +410,16 @@
                 const data = await res.json();
 
                 if (data.success) {
+                    latestProcessRows = data.rows || [];
                     processStatus.textContent = `Found ${data.count} processes generated today.`;
                     renderProcessTable(data.rows);
                 } else {
+                    latestProcessRows = [];
                     processStatus.textContent = 'Error: ' + (data.error || 'Failed to fetch');
                     processTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #b91c1c; padding: 40px;">Error: ${data.error}</td></tr>`;
                 }
             } catch (err) {
+                latestProcessRows = [];
                 processStatus.textContent = 'Error: ' + err.message;
                 processTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #b91c1c; padding: 40px;">Error: ${err.message}</td></tr>`;
             } finally {
@@ -448,7 +456,67 @@
             }).join('');
         }
 
+        async function runStartProcess() {
+            if (!latestProcessRows || latestProcessRows.length === 0) {
+                await fetchTodayProcesses();
+            }
+
+            if (!latestProcessRows || latestProcessRows.length === 0) {
+                alert('No processes found for today to run.');
+                return;
+            }
+
+            startProcessBtn.disabled = true;
+            refreshProcessBtn.disabled = true;
+
+            let processed = 0;
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const row of latestProcessRows) {
+                const username = row.customer_username;
+                processed += 1;
+                processStatus.textContent = `Processing ${username} (${processed}/${latestProcessRows.length})...`;
+
+                try {
+                    const res = await fetch('/.netlify/functions/statement_of_account-statement_table_calculation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customer_username: username,
+                            action: 'generate_pdf'
+                        })
+                    });
+
+                    let data = {};
+                    try {
+                        data = await res.json();
+                    } catch (e) {
+                        data = {};
+                    }
+
+                    if (res.ok && data.success !== false) {
+                        successCount += 1;
+                    } else {
+                        errorCount += 1;
+                        console.error('Error generating PDF for', username, data);
+                    }
+                } catch (err) {
+                    errorCount += 1;
+                    console.error('Error generating PDF for', username, err);
+                }
+            }
+
+            processStatus.textContent = `Completed PDF generation. Success: ${successCount}, Errors: ${errorCount}.`;
+
+            startProcessBtn.disabled = false;
+            refreshProcessBtn.disabled = false;
+
+            fetchTodayProcesses();
+        }
+
         refreshProcessBtn.addEventListener('click', fetchTodayProcesses);
+        startProcessBtn.addEventListener('click', runStartProcess);
 
         // Auto-fetch if processTab is opened
         const originalOpenTab = window.openTab;
