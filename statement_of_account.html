@@ -497,6 +497,10 @@
 
                     if (res.ok && data.success !== false) {
                         successCount += 1;
+                        console.log('PDF generated successfully for customer:', username, {
+                            response: data,
+                            httpStatus: res.status
+                        });
                     } else {
                         errorCount += 1;
                         console.error('Error generating PDF for', username, data);
