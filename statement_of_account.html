@@ -380,7 +380,10 @@
                 if (pdfData.success) {
                     alert('PDF Generation Successful!');
                 } else {
-                    alert('Error generating PDF: ' + (pdfData.message || pdfData.error || 'Unknown error'));
+                    const errorMsg = pdfData.message || pdfData.error || 'Unknown error';
+                    calcText.textContent = 'Error generating PDF: ' + errorMsg;
+                    calcResponse.className = 'response-container error';
+                    alert('Error generating PDF: ' + errorMsg);
                 }
             } catch (err) {
                 console.error('Error in calculation/PDF generation:', err);
@@ -434,7 +437,10 @@
             }
 
             processTableBody.innerHTML = rows.map(row => {
-                const date = new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                // Use the Sydney time from backend if available, otherwise fallback to local time
+                const dateDisplay = row.created_at.includes('-') && row.created_at.includes(':') 
+                    ? row.created_at 
+                    : new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const sentBadge = row.sent 
                     ? '<span class="badge" style="background: #dcfce7; color: #166534;">YES</span>' 
                     : '<span class="badge" style="background: #fee2e2; color: #991b1b;">NO</span>';
@@ -444,6 +450,8 @@
                     pdfCellContent = '<span style="color: #94a3b8;">N/A</span>';
                 } else if (row.pdf_link === 'No Orders' || row.pdf_link === 'Grand Total is 0') {
                     pdfCellContent = `<span style="color: #64748b; font-weight: 600;">${row.pdf_link}</span>`;
+                } else if (row.pdf_link === 'Error') {
+                    pdfCellContent = `<span style="color: #b91c1c; font-weight: 600;">Error</span>`;
                 } else {
                     pdfCellContent = `<a href="${row.pdf_link}" target="_blank" style="color: #4f46e5; text-decoration: none; font-weight: 600;">View PDF</a>`;
                 }
@@ -455,7 +463,7 @@
                         <td>${pdfCellContent}</td>
                         <td>${sentBadge}</td>
                         <td style="font-size: 0.85rem;">${row.customer_email || '-'}</td>
-                        <td>${date}</td>
+                        <td>${dateDisplay}</td>
                     </tr>
                 `;
             }).join('');
@@ -503,9 +511,16 @@
                     });
 
                     let data = {};
+                    let responseText = '';
                     try {
-                        data = await res.json();
+                        responseText = await res.text();
+                        data = JSON.parse(responseText);
                     } catch (e) {
+                        // If parsing fails, check if the raw text contains the timeout error or other identifiable errors
+                        if (responseText.includes('TimeoutErr')) {
+                            row.pdf_link = 'Error';
+                            renderProcessTable(latestProcessRows);
+                        }
                         data = {};
                     }
 
@@ -544,10 +559,14 @@
                     } else {
                         errorCount += 1;
                         console.error('Error generating PDF for', username, data);
+                        row.pdf_link = 'Error';
+                        renderProcessTable(latestProcessRows);
                     }
                 } catch (err) {
                     errorCount += 1;
                     console.error('Error generating PDF for', username, err);
+                    row.pdf_link = 'Error';
+                    renderProcessTable(latestProcessRows);
                 }
             }
 

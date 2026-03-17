@@ -51,13 +51,41 @@ exports.handler = async (event) => {
 
     if (error) throw error;
 
+    // Convert created_at to Australia/Sydney timezone for each row
+    const rowsWithSydneyTime = data.map(row => {
+      if (row.created_at) {
+        try {
+          const date = new Date(row.created_at);
+          const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Australia/Sydney',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+          
+          const parts = formatter.formatToParts(date);
+          const getPart = (type) => parts.find(p => p.type === type).value;
+          
+          // Return a clean YYYY-MM-DD HH:mm format
+          row.created_at = `${getPart('year')}-${getPart('month')}-${getPart('day')} ${getPart('hour')}:${getPart('minute')}`;
+        } catch (e) {
+          console.error('Error converting date:', e);
+        }
+      }
+      return row;
+    });
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        count: data.length,
-        rows: data
+        count: rowsWithSydneyTime.length,
+        rows: rowsWithSydneyTime
       })
     };
   } catch (error) {
