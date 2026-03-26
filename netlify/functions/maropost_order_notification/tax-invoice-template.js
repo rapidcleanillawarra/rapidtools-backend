@@ -46,7 +46,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
   const shippingTotal = parseFloat(order.ShippingTotal || 0);
   const shippingDiscount = parseFloat(order.ShippingDiscount || 0);
   const shippingOption = order.ShippingOption || 'Local';
-  // Taxable total: sum of (Qty × UnitPrice − ProductDiscount) for lines where TaxCode is not FRE. OrderLine.Tax is not used for GST.
+  const taxableFreightNet = shippingTotal - shippingDiscount;
+  // Taxable total: sum of (Qty × UnitPrice − ProductDiscount) for lines where TaxCode is not FRE, plus freight (ex GST). OrderLine.Tax is not used for GST.
   const taxableProductTotal = (orderLines || []).reduce((sum, line) => {
     if (String(line.TaxCode || '').toUpperCase() === 'FRE') return sum;
     const quantity = parseFloat(line.Quantity || line.Qty || 0);
@@ -55,8 +56,8 @@ const generateTaxInvoiceHTML = (orderDetails, productImages, relatedBackorders, 
     return sum + (quantity * unitPrice - productDiscount);
   }, 0);
   const taxInclusive = String(order.TaxInclusive || '').toLowerCase() === 'true';
-  const subtotalBeforeGst = (productSubtotal - totalProductDiscount) + shippingTotal - shippingDiscount;
-  const gst = taxInclusive ? 0 : Math.round(taxableProductTotal * 10) / 100;
+  const subtotalBeforeGst = (productSubtotal - totalProductDiscount) + taxableFreightNet;
+  const gst = taxInclusive ? 0 : Math.round((taxableProductTotal + taxableFreightNet) * 10) / 100;
   const grandTotal = taxInclusive ? subtotalBeforeGst : subtotalBeforeGst + gst;
 
   // Calculate total amount paid from OrderPayment array (Account Credit adds to total like other payments)
